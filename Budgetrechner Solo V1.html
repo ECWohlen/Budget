@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budgetrechner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: frei konfigurierbare Kartenraster-Seite (12 Spalten), Abschnitte voll oder halb breit, Reihenfolge per order */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#14202b; --ink2:#4b5b68; --line:#d3dbe2; --field:#f5f7f9;
+  --accent:#1f5fbf; --good:#0f7b52; --bad:#c62f2f; --muted:#8a95a0;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --serif:'IBM Plex Serif',Georgia,serif; --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1519; --surface:#182027; --ink:#eaf0f4; --ink2:#a9b8c3; --line:#2c3a44; --field:#101a20; --accent:#6fa5f0;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1519; --surface:#182027; --ink:#eaf0f4; --ink2:#a9b8c3; --line:#2c3a44; --field:#101a20; --accent:#6fa5f0;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page-bg,var(--bg));color:var(--page-ink,var(--ink));font-family:var(--sans);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 56px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:16px}
+h1{font-family:var(--serif);font-weight:600;font-size:28px;margin:0;text-wrap:balance}
+header .sub{margin:2px 0 0;opacity:.75;font-size:14px}
+.seg{display:inline-flex;border:1px solid color-mix(in srgb,currentColor 30%,transparent);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;color:inherit;border:0;padding:8px 14px;font:inherit;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent,#fff)}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hbtns[hidden]{display:none}
+.btn{font:inherit;cursor:pointer;border-radius:8px;padding:8px 12px;border:1px solid color-mix(in srgb,currentColor 30%,transparent);background:transparent;color:inherit}
+.btn:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#fff)}
+.btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#fff)}
+.panel{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.panel[hidden]{display:none}
+.panel h2{font-size:16px;margin:0 0 4px}
+.panel .hint{color:var(--ink2);margin:0 0 12px;font-size:13px}
+.lay-row{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.lay-row label{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--ink2)}
+.lay-row input[type=number]{width:70px;background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:13px}
+.panel h3{font-size:13px;color:var(--ink2);margin:16px 0 8px}
+.colgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 14px}
+.colitem{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.colitem span{flex:1 1 auto;min-width:0}
+.colitem input[type=color]{width:40px;height:30px;padding:2px;border:1px solid var(--line);border-radius:6px;background:var(--field);cursor:pointer}
+/* Kacheln anordnen */
+.sec{position:relative}
+.dh,.rz{display:none;position:absolute;z-index:5}
+.arr .sec{outline:2px dashed color-mix(in srgb,var(--accent) 65%,transparent);outline-offset:-2px}
+.arr .dh,.arr .rz{display:block}
+.dh{top:-1px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--on-accent,#fff);border-radius:0 0 8px 8px;padding:4px 14px;font-size:12px;cursor:grab;touch-action:none;user-select:none;white-space:nowrap}
+.dh:active{cursor:grabbing}
+.rz{touch-action:none}
+.rz::after{content:'';position:absolute;inset:3px;background:var(--accent);border-radius:4px;opacity:.8}
+.rz-w{top:34px;bottom:34px;right:0;width:14px;cursor:ew-resize}
+.rz-h{left:34px;right:34px;bottom:0;height:14px;cursor:ns-resize}
+.rz-c{right:0;bottom:0;width:22px;height:22px;cursor:nwse-resize}
+.sbody{min-width:0}
+.sec.hset{display:flex;flex-direction:column}
+.sec.hset>.sbody{flex:1 1 0;min-height:0;overflow:auto}
+.sec h2{padding-right:34px}
+.fold{position:absolute;top:14px;right:14px;width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;font-size:14px;line-height:1;z-index:4}
+.fold:hover{border-color:var(--accent)}
+.fold::before{content:'\25BE';display:block;transition:transform .15s}
+.sec.folded .fold::before{transform:rotate(-90deg)}
+.sec.folded>:not(h2):not(.dh):not(.rz):not(.fold){display:none}
+.sec.folded{height:auto !important;min-height:0 !important;align-self:start}
+.sec h2{cursor:pointer}
+.sec h2 input,.sec h2 button,.sec h2 a{cursor:auto}
+.sec.folded h2{margin-bottom:0}
+.tabs .allfold{margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:6px}
+.tabs .allfold button{font:inherit;font-size:13px;opacity:1;border:1px solid color-mix(in srgb,currentColor 30%,transparent);border-radius:6px;padding:4px 10px;margin:0}
+.sec.dragging{opacity:.5}
+.sec.drop-before{box-shadow:inset 0 8px 0 0 var(--accent)}
+.sec.drop-after{box-shadow:inset 0 -8px 0 0 var(--accent)}
+@media (max-width:860px){.sec{grid-column:span 12 !important}.rz-w,.rz-c{display:none !important}}
+.lay-row .nm{font-weight:500}
+.lay-row input[type=color]{width:40px;height:32px;padding:2px;border:1px solid var(--line);border-radius:6px;background:var(--field);cursor:pointer}
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+.mini{font:inherit;font-size:13px;cursor:pointer;border-radius:6px;padding:5px 9px;border:1px solid var(--line);background:var(--field);color:var(--ink)}
+.mini:hover{border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.sec{grid-column:span 12;background:var(--sbg,var(--surface));color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:20px;min-width:0}
+.sec.half{grid-column:span 6}
+
+.sec h2{font-family:var(--serif);font-size:19px;font-weight:600;margin:0 0 14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.sec h3{font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink2)}
+.tot{font-family:var(--sans);font-size:15px;font-weight:600}
+input,select,textarea,button{font-family:inherit}
+.row input,.row select,.f input,.f select,textarea{background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:14px;min-width:0;width:100%}
+.row{--rc:var(--s1);display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,.9fr) minmax(0,1fr) 36px;gap:8px 10px;padding:12px 14px 12px 14px;margin:0 0 10px;border:1px solid color-mix(in srgb,var(--rc) 35%,var(--line));border-left:6px solid var(--rc);border-radius:10px;background:color-mix(in srgb,var(--rc) 8%,transparent);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.row:hover{background:color-mix(in srgb,var(--rc) 13%,transparent)}
+.row:focus-within{border-color:var(--rc);box-shadow:0 0 0 2px color-mix(in srgb,var(--rc) 35%,transparent)}
+.row label{display:grid;gap:3px;font-size:11.5px;font-weight:500;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;min-width:0}
+.row label input,.row label select{text-transform:none;letter-spacing:0;font-weight:400;font-size:14px;color:var(--ink)}
+.row .c-cat{grid-column:1 / 3}
+.row .meq{grid-column:3 / -1;align-self:end;text-align:right;font-size:12.5px;color:var(--ink2);padding-bottom:6px}
+.row.inc .meq{grid-column:1 / -1;padding-bottom:0;border-top:1px dashed var(--line);padding-top:6px;text-align:left}
+.row .meq b{color:var(--ink)}
+.row .del{align-self:end}
+.row .am{text-align:right}
+.del{background:transparent;color:var(--ink2);border:1px solid var(--line);border-radius:7px;cursor:pointer;font-size:18px;line-height:1;height:34px}
+.del:hover{color:var(--bad);border-color:var(--bad)}
+@media (max-width:520px){.row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px}.row .c-nm{grid-column:1 / 3}.row .del{grid-column:3;grid-row:1}.row .c-cat{grid-column:1 / -1}.row .meq{grid-column:1 / -1;text-align:left;padding-bottom:0}}
+.adds{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chips .mini{border-style:dashed}
+.chips-l{font-size:12px;color:var(--ink2);margin-top:12px}
+.empty{color:var(--ink2);font-size:14px;margin:6px 0}
+/* Ergebnis */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:center;border-radius:10px;padding:20px 22px;border-left:8px solid var(--st);background:color-mix(in srgb,var(--st) 13%,transparent)}
+.hero.good{--st:var(--good)}.hero.bad{--st:var(--bad)}.hero.zero{--st:var(--muted)}
+@media (max-width:700px){.hero{grid-template-columns:1fr}}
+.badge{display:inline-flex;align-items:center;gap:6px;background:var(--st);color:#fff;font-weight:600;font-size:13px;padding:4px 11px;border-radius:99px;letter-spacing:.02em}
+.big{font-family:var(--serif);font-weight:600;font-size:clamp(34px,6vw,52px);line-height:1.1;margin:8px 0 2px}
+.per{color:var(--ink2);font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.kpi{background:color-mix(in srgb,var(--ink) 6%,transparent);border-radius:8px;padding:10px 12px}
+.kpi b{display:block;font-size:17px;font-weight:600}
+.kpi span{font-size:12px;color:var(--ink2)}
+.meter{grid-column:1 / -1;margin-top:2px}
+.meter .lab{display:flex;justify-content:space-between;font-size:13px;color:var(--ink2);margin-bottom:5px;gap:10px;flex-wrap:wrap}
+.meter .track{height:10px;border-radius:5px;background:color-mix(in srgb,var(--ink) 12%,transparent);overflow:hidden}
+.meter .track i{display:block;height:100%;background:var(--st);border-radius:5px}
+/* Charts */
+.cgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+@media (max-width:760px){.cgrid{grid-template-columns:1fr}}
+.donut-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.donut-wrap svg{width:190px;height:190px;flex:0 0 auto}
+.donut-wrap .ctr{font-family:var(--serif);font-weight:600;font-size:15px;fill:var(--ink)}
+.donut-wrap .ctr2{font-size:10px;fill:var(--ink2)}
+.legend{list-style:none;margin:0;padding:0;flex:1 1 180px;min-width:0;display:grid;gap:5px}
+.legend li{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13.5px}
+.legend i{width:12px;height:12px;border-radius:3px;display:block}
+.legend .v{font-weight:500;white-space:nowrap}
+.legend .v small{color:var(--ink2);font-weight:400}
+.hbar{display:grid;grid-template-columns:minmax(90px,150px) minmax(0,1fr) auto;gap:10px;align-items:center;padding:4px 0;font-size:13.5px}
+.hbar .track{height:16px;background:color-mix(in srgb,var(--ink) 8%,transparent);border-radius:0 4px 4px 0}
+.hbar .track i{display:block;height:100%;border-radius:0 4px 4px 0}
+.hbar .hv{white-space:nowrap;font-weight:500}
+.hbar .hv small{color:var(--ink2);font-weight:400}
+@media (max-width:520px){.hbar{grid-template-columns:minmax(0,1fr) auto}.hbar .track{grid-column:1 / -1;order:3}}
+.flow{margin-top:28px}
+.flowbar{position:relative;display:flex;gap:2px;height:30px;margin:26px 0 10px}
+.flowbar i{display:block;height:100%;flex-basis:0;min-width:2px}
+.flowbar i:first-child{border-radius:6px 0 0 6px}.flowbar i:last-child{border-radius:0 6px 6px 0}
+.flowbar .mark{position:absolute;top:-8px;bottom:-8px;width:2px;background:var(--ink);flex:none}
+.flowbar .mark span{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-size:11.5px;white-space:nowrap;color:var(--ink);font-weight:600}
+.legend.inline{display:flex;flex-wrap:wrap;gap:6px 16px}
+.legend.inline li{display:flex;gap:6px}
+/* Verwendung */
+.alloc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+@media (max-width:900px){.alloc{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.alloc{grid-template-columns:1fr}}
+.acard{border:1px solid var(--line);border-radius:10px;padding:12px 14px;border-top:4px solid var(--c);min-width:0}
+.acard h3{margin:0 0 2px;color:var(--ink);font-size:14px}
+.acard .amt{font-family:var(--serif);font-size:22px;font-weight:600}
+.acard p{margin:6px 0 0;font-size:13px;color:var(--ink2)}
+.f{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:6px}
+.f label{display:grid;gap:3px;font-size:12.5px;color:var(--ink2)}
+.f input{width:96px}
+.f input.wide{width:130px}
+.etf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:6px}
+@media (max-width:760px){.etf{grid-template-columns:1fr}}
+.etfc{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.etfc b{display:block;margin-bottom:2px}
+.etfc .meta{font-size:12.5px;color:var(--ink2);margin:0 0 8px}
+.etfc a,.note a{color:var(--accent);font-weight:500}
+.note{font-size:12.5px;color:var(--ink2);margin:10px 0 0}
+.warn{color:var(--bad);font-size:13px;font-weight:500}
+.ul-tight{margin:6px 0 0;padding-left:18px}
+.ul-tight li{margin:2px 0}
+/* Regel */
+.rule{display:grid;gap:14px}
+.rl .top{display:flex;justify-content:space-between;gap:8px;font-size:14px;flex-wrap:wrap;margin-bottom:4px}
+.rl .track{position:relative;height:14px;background:color-mix(in srgb,var(--ink) 8%,transparent);border-radius:0 4px 4px 0}
+.rl .track i{display:block;height:100%;border-radius:0 4px 4px 0}
+.rl .track u{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);text-decoration:none}
+.rl .st{font-size:12.5px;color:var(--ink2);margin-top:4px}
+.chip{display:inline-block;font-weight:600;font-size:12px;padding:1px 8px;border-radius:99px;color:#fff;margin-right:6px}
+.chip.ok{background:var(--good)}.chip.no{background:var(--bad)}
+/* Projektion */
+.pj svg{width:100%;height:auto;display:block;overflow:visible}
+.pj text{fill:var(--ink2);font-size:11px}
+.pj .lbl{fill:var(--ink);font-weight:600}
+.pj .grid-l{stroke:var(--ink);opacity:.12}
+.pj .hov{fill:transparent;cursor:crosshair}
+textarea{min-height:90px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;resize:vertical}
+#tip{white-space:pre-line;position:fixed;z-index:50;pointer-events:none;background:#14202b;color:#fff;font-size:12.5px;padding:6px 9px;border-radius:6px;max-width:380px;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+#tip[hidden]{display:none}
+.foot{margin-top:18px;font-size:12.5px;opacity:.75}
+/* Tabs */
+.tabs{display:flex;gap:4px;margin:0 0 16px;border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent)}
+.tabs button{font:inherit;background:transparent;color:inherit;border:0;border-bottom:3px solid transparent;padding:10px 16px;cursor:pointer;opacity:.75;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{opacity:1;font-weight:600;border-bottom-color:var(--accent)}
+.sec[hidden]{display:none}
+/* ETF-Sparplan (ISIN) */
+.prow{display:grid;grid-template-columns:26px minmax(0,1.1fr) minmax(0,1.5fr) minmax(0,.8fr) 34px;align-items:start;gap:6px 8px;padding:8px 0;border-top:1px solid var(--line)}
+.prow:first-child{border-top:0}
+.prow input,.spf input,.spf select{background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:14px;min-width:0;width:100%}
+.prow .isin{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;text-transform:uppercase}
+.prow .am{text-align:right}
+.pst{grid-column:1 / -1;font-size:12.5px;color:var(--ink2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pst a{color:var(--accent);font-weight:500}
+@media (max-width:640px){.prow{grid-template-columns:26px minmax(0,1fr) minmax(0,1fr) 34px}.prow .isin{grid-column:2 / 4}.prow .del{grid-column:4;grid-row:1}.prow input[data-f="name"]{grid-column:2 / 4}.prow .am{grid-column:2 / 4}}
+.prow .on{width:20px;height:20px;margin-top:8px;accent-color:var(--accent)}
+.prow.off{opacity:.55}
+/* Lebenssituation, Monte-Carlo */
+.mcf{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end;margin-bottom:14px}
+.mcf label{display:grid;gap:3px;font-size:12.5px;color:var(--ink2)}
+.mcf input,.mcf select,.lifesel select{background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:14px;min-width:0;width:100%}
+@media (max-width:760px){.mcf{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.scen.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:640px){.scen.c4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lifesel{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.lifesel label{display:grid;gap:3px;font-size:12.5px;color:var(--ink2);min-width:220px}
+/* Ausgaben: immer zwei Posten nebeneinander */
+#exp-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#exp-list .row{margin:0;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 34px;padding:10px 12px}
+#exp-list .row .c-nm{grid-column:1 / 3}
+#exp-list .row .del{grid-column:3;grid-row:1}
+#exp-list .row .c-fq{grid-column:2 / 4}
+#exp-list .row{grid-template-columns:minmax(0,.85fr) minmax(0,1fr) 34px}
+#exp-list .row .c-cat{grid-column:1 / -1}
+#exp-list .row .meq{grid-column:1 / -1;text-align:left;padding-bottom:0;border-top:1px dashed var(--line);padding-top:6px}
+#exp-list .empty{grid-column:1 / -1}
+@media (max-width:480px){#exp-list{grid-template-columns:1fr}}
+/* Ampel */
+.amp{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;color:#fff;font-weight:700;font-size:14px;cursor:help;flex:none}
+.amp.g{background:var(--good)}.amp.y{background:#e0a100;color:#1b1b1b}.amp.r{background:var(--bad)}.amp.n{background:var(--muted)}
+.ampwrap{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ad{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:4px;font-size:10px;font-weight:700;color:#fff;cursor:help}
+.ad.g{background:var(--good)}.ad.y{background:#e0a100;color:#1b1b1b}.ad.r{background:var(--bad)}.ad.n{background:var(--muted)}
+.ads{display:flex;gap:3px}
+/* ETF-Finder */
+.fif{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.fif label{display:grid;gap:3px;font-size:12.5px;color:var(--ink2)}
+.fif select{background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:14px;min-width:0;width:100%}
+@media (max-width:860px){.fif{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.fif2{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.fif2 .chk{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink)}
+.fi-br{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+table.fit{width:100%;border-collapse:collapse;font-size:13.5px}
+table.fit th,table.fit td{padding:9px 10px;text-align:left;border-top:1px solid var(--line);vertical-align:top}
+table.fit th{font-weight:600;color:var(--ink2);border-top:0;white-space:nowrap}
+table.fit td.n{white-space:nowrap}
+table.fit .nm b{display:block}
+table.fit .nm small{color:var(--ink2)}
+table.fit .nm a{color:var(--accent);font-weight:500;font-size:12.5px}
+table.fit .selc{display:grid;gap:3px;font-size:11.5px;color:var(--ink2)}
+table.fit .selc input{width:20px;height:20px;accent-color:var(--accent)}
+table.fit tr.unkrow td{background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.yn{display:inline-block;font-weight:600;font-size:12px;padding:1px 8px;border-radius:99px;color:#fff}
+.yn.y{background:var(--good)}.yn.n{background:var(--muted)}.yn.u{background:transparent;color:var(--ink2);border:1px dashed var(--ink2)}
+.fit .acts{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.fit .acts a{color:var(--accent);font-weight:500}
+/* Sparplanrechner */
+.spf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.spf label{display:grid;gap:3px;font-size:12.5px;color:var(--ink2)}
+.spf .full{grid-column:1 / -1}
+.spf .pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.spf input[readonly]{font-weight:600;border-style:dashed;border-color:var(--accent)}
+.spf .chk{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px}
+.spf .chk input{width:auto}
+@media (max-width:520px){.spf{grid-template-columns:1fr}}
+details.more{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+details.more summary{cursor:pointer;font-weight:600;font-size:14px;margin-bottom:10px}
+.res-big{font-family:var(--serif);font-weight:600;font-size:clamp(30px,5vw,44px);line-height:1.1;margin:6px 0 2px}
+.res-sub{color:var(--ink2);font-size:14px;margin-bottom:12px}
+dl.kv{display:grid;grid-template-columns:1fr auto;gap:0 14px;margin:0;font-size:14px}
+dl.kv dt,dl.kv dd{margin:0;padding:7px 0;border-top:1px solid var(--line)}
+dl.kv dd{text-align:right;font-weight:600}
+.scen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.scen div{background:color-mix(in srgb,var(--ink) 6%,transparent);border-radius:8px;padding:9px 11px;font-size:12.5px;color:var(--ink2)}
+.scen b{display:block;color:var(--ink);font-size:15px}
+.sp svg{width:100%;height:auto;display:block}
+.sp text{fill:var(--ink2);font-size:11px}
+.sp .lbl{fill:var(--ink);font-weight:600}
+.sp .grid-l{stroke:var(--ink);opacity:.12}
+.tbl{overflow-x:auto;margin-top:10px}
+table.yt{width:100%;border-collapse:collapse;font-size:13px}
+table.yt th,table.yt td{padding:6px 10px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+table.yt th:first-child,table.yt td:first-child{text-align:left}
+table.yt th{font-weight:600;color:var(--ink2);border-top:0}
+.msgbad{background:color-mix(in srgb,var(--bad) 14%,transparent);border-left:6px solid var(--bad);padding:10px 12px;border-radius:6px;font-size:14px}
+@media (prefers-reduced-motion:no-preference){.meter .track i,.rl .track i,.hbar .track i{transition:width .25s ease}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Budgetrechner</h1>
+      <p class="sub">Einnahmen und Ausgaben erfassen, Überschuss oder Defizit sehen. Alle Beträge in CHF.</p>
+    </div>
+    <div class="hbtns">
+      <div class="seg" role="group" aria-label="Anzeige">
+        <button type="button" id="v-month" aria-pressed="true">pro Monat</button>
+        <button type="button" id="v-year" aria-pressed="false">pro Jahr</button>
+      </div>
+      <button type="button" class="btn" id="reset-btn">Alles auf 0 setzen</button>
+      <span id="reset-confirm" class="hbtns" hidden role="alertdialog" aria-label="Zurücksetzen bestätigen"><span>Alle Eingaben löschen?</span><button type="button" class="btn primary" id="reset-yes">Ja, alles auf 0</button><button type="button" class="btn" id="reset-no">Abbrechen</button></span>
+      <button type="button" class="btn" id="arrange-btn" aria-pressed="false">Kacheln anordnen</button>
+      <button type="button" class="btn" id="toggle-set" aria-expanded="false" aria-controls="settings">Darstellung anpassen</button>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Bereiche">
+    <button type="button" role="tab" id="tab-b" aria-selected="true">Budget</button>
+    <button type="button" role="tab" id="tab-s" aria-selected="false">Sparplanrechner</button>
+    <button type="button" role="tab" id="tab-f" aria-selected="false">ETF-Finder</button>
+    <span class="allfold"><button type="button" id="fold-all">Alle einklappen</button><button type="button" id="unfold-all">Alle ausklappen</button></span>
+  </div>
+
+  <div class="panel" id="settings" hidden>
+    <h2>Darstellung anpassen</h2>
+    <p class="hint">Alle Farben, Reihenfolge, Breite und Höhe der Kacheln. Die Einstellungen bleiben in diesem Browser gespeichert, sofern er das erlaubt.</p>
+    <h3>Farbvorlagen</h3>
+    <div class="presets" id="presets" aria-label="Farbvorlagen"></div>
+    <h3>Farben</h3>
+    <div class="colgrid" id="col-grid"></div>
+    <div style="margin-top:10px"><button type="button" class="mini" id="col-reset">Alle Farben zurücksetzen</button></div>
+    <h3>Kacheln</h3>
+    <p class="hint">Direkt am Bildschirm geht es mit «Kacheln anordnen» oben. Hier stellst du Reihenfolge, Breite (Spalten von 12), Höhe in Pixel (0 = automatisch, bei kleinerer Höhe scrollt der Inhalt) sowie Hintergrund- und Textfarbe jeder Kachel ein.</p>
+    <div id="lay-list"></div>
+    <div style="margin-top:10px"><button type="button" class="mini" id="lay-reset">Anordnung und Grössen zurücksetzen</button></div>
+  </div>
+  <p class="note" id="arrange-hint" hidden style="margin:-4px 0 12px">Kacheln anordnen ist an. Ziehe eine Kachel am Griff «Verschieben» an eine neue Stelle. Ziehe am rechten oder unteren Rand, um Breite oder Höhe zu ändern. Ein Doppelklick auf den Rand setzt die Grösse zurück.</p>
+
+  <main class="grid" id="grid">
+    <section class="sec" id="sec-situation" aria-labelledby="h-situation">
+      <h2 id="h-situation">Lebenssituation</h2>
+      <div class="lifesel">
+        <label for="life">Lebenssituation<select id="life"><option value="">Bitte wählen</option><option value="student">Student</option><option value="einsteiger">Berufseinsteiger</option><option value="experienced">Experienced</option></select></label>
+        <button type="button" class="btn" id="life-load">Vorlage laden</button>
+        <span id="life-confirm" class="hbtns" hidden role="alertdialog" aria-label="Vorlage ersetzen"><span>Bestehende Einnahmen und Ausgaben ersetzen?</span><button type="button" class="btn primary" id="life-yes">Ja, ersetzen</button><button type="button" class="btn" id="life-no">Nein, behalten</button></span>
+      </div>
+      <p class="note" id="life-desc">Wähle eine Lebenssituation, um Einnahmen und Ausgaben mit typischen Richtwerten vorzubefüllen. Danach passt du alles an deine Zahlen an.</p>
+    </section>
+
+    <section class="sec" id="sec-ergebnis" aria-labelledby="h-ergebnis">
+      <h2 id="h-ergebnis">Ergebnis</h2>
+      <div id="hero" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="sec half" id="sec-einnahmen" aria-labelledby="h-einnahmen">
+      <h2 id="h-einnahmen">Einnahmen <span class="tot" id="tot-inc"></span></h2>
+      <div id="inc-list"></div>
+      <div class="adds"><button type="button" class="btn primary" id="add-inc">+ Einnahme hinzufügen</button></div>
+      <div class="chips-l">Schnell hinzufügen</div>
+      <div class="chips" id="inc-chips"></div>
+    </section>
+
+    <section class="sec half" id="sec-ausgaben" aria-labelledby="h-ausgaben">
+      <h2 id="h-ausgaben">Ausgaben <span class="tot" id="tot-exp"></span></h2>
+      <div id="exp-list"></div>
+      <div class="adds"><button type="button" class="btn primary" id="add-exp">+ Ausgabe hinzufügen</button></div>
+      <div class="chips-l">Schnell hinzufügen</div>
+      <div class="chips" id="exp-chips"></div>
+    </section>
+
+    <section class="sec" id="sec-grafiken" aria-labelledby="h-grafiken">
+      <h2 id="h-grafiken">Grafiken <span class="tot" id="chart-unit"></span></h2>
+      <div class="cgrid">
+        <div><h3>Einnahmen nach Quelle</h3><div id="ch-inc"></div></div>
+        <div><h3>Ausgaben nach Kategorie</h3><div id="ch-exp"></div></div>
+      </div>
+      <div class="flow"><h3>Wohin das Geld fliesst</h3><div id="ch-flow"></div></div>
+    </section>
+
+    <section class="sec" id="sec-verwendung" aria-labelledby="h-verwendung">
+      <h2 id="h-verwendung">Verwendung des Überschusses</h2>
+      <div id="use-pos" hidden>
+        <p class="empty" id="use-intro" style="margin-top:0"></p>
+        <div class="f">
+          <label for="reserve">Vorhandene Reserve (CHF)<input type="number" min="0" step="any" id="reserve" class="wide"></label>
+          <label for="pct-res">Reserve %<input type="number" min="0" max="100" id="pct-res"></label>
+          <label for="pct-3a">Säule 3a %<input type="number" min="0" max="100" id="pct-3a"></label>
+          <label for="pct-etf">ETF %<input type="number" min="0" max="100" id="pct-etf"></label>
+          <label for="pct-free">Frei %<input type="number" min="0" max="100" id="pct-free"></label>
+          <button type="button" class="mini" id="alloc-auto">Empfehlung anwenden</button>
+          <button type="button" class="mini" id="pct-norm">Auf 100 % normalisieren</button>
+        </div>
+        <div id="alloc-warn" class="warn"></div>
+        <div class="alloc" id="alloc-cards"></div>
+      </div>
+      <div id="use-neg" hidden></div>
+      <div id="plan-wrap" style="margin-top:18px">
+        <h3>Mein ETF-Sparplan (ISIN erfassen)</h3>
+        <div id="plan-list"></div>
+        <div class="adds">
+          <button type="button" class="btn primary" id="plan-add">+ ETF per ISIN hinzufügen</button>
+          <button type="button" class="btn" id="plan-calc">Im Sparplanrechner öffnen</button>
+          <span class="chips-l" style="margin:0 0 0 6px">Beispiele:</span>
+          <span id="plan-quick" class="chips" style="margin:0"></span>
+        </div>
+        <p class="note" id="plan-sum"></p>
+      </div>
+    </section>
+
+    <section class="sec half" id="sec-projektion" aria-labelledby="h-projektion">
+      <h2 id="h-projektion">Vermögensprojektion</h2>
+      <div class="f">
+        <label for="pj-m">Sparbetrag pro Monat<input type="number" min="0" step="any" id="pj-m" class="wide"></label>
+        <label for="pj-r">Rendite % p.a.<input type="number" min="0" max="15" step="0.1" id="pj-r"></label>
+        <label for="pj-y">Jahre<input type="number" min="1" max="50" step="1" id="pj-y"></label>
+      </div>
+      <div class="pj" id="pj"></div>
+      <p class="note">Rechenbeispiel mit gleichbleibender Rendite, vor Kosten und Steuern. Reale Renditen schwanken und sind nicht garantiert.</p>
+    </section>
+
+    <section class="sec half" id="sec-regel" aria-labelledby="h-regel">
+      <h2 id="h-regel">Faustregel 50 / 30 / 20</h2>
+      <div class="rule" id="rule"></div>
+      <p class="note">Richtwert: höchstens 50 % für Fixes und Notwendiges, höchstens 30 % für Wünsche, mindestens 20 % Sparen. Als Sparen zählen die Kategorie «Sparen &amp; Vorsorge» und ein Überschuss.</p>
+    </section>
+
+    <section class="sec" id="sec-daten" aria-labelledby="h-daten">
+      <h2 id="h-daten">Daten sichern und laden</h2>
+      <p class="empty" style="margin-top:0">Kopiere den Text und speichere ihn in einer Notiz, oder füge einen gespeicherten Text ein und lade ihn.</p>
+      <textarea id="data-json" aria-label="Budgetdaten als Text" spellcheck="false"></textarea>
+      <div class="adds">
+        <button type="button" class="btn" id="d-copy">Daten kopieren</button>
+        <button type="button" class="btn" id="d-load">Daten laden</button>
+        <button type="button" class="btn" id="d-sample">Beispiel laden</button>
+        <button type="button" class="btn" id="d-clear">Alles auf 0 setzen</button>
+        <span id="d-msg" class="empty"></span>
+      </div>
+    </section>
+    <section class="sec half" id="sec-sp-eingabe" aria-labelledby="h-sp-eingabe" hidden>
+      <h2 id="h-sp-eingabe">Sparplanrechner</h2>
+      <div class="spf">
+        <label class="full" for="sp-mode">Was möchtest du berechnen?
+          <select id="sp-mode"><option value="end">Endkapital</option><option value="start">Startkapital</option><option value="rate">Sparrate</option><option value="ret">Zinssatz p.a.</option><option value="years">Ansparzeit</option></select></label>
+        <label for="sp-start">Startkapital (CHF)<input type="number" min="0" step="any" id="sp-start" inputmode="decimal"></label>
+        <label for="sp-years">Ansparzeit (Jahre)<input type="number" min="0" step="any" id="sp-years" inputmode="decimal"></label>
+        <label for="sp-rate">Sparrate (CHF)<input type="number" min="0" step="any" id="sp-rate" inputmode="decimal"></label>
+        <label for="sp-intv">Sparintervall<select id="sp-intv"><option value="M">monatlich</option><option value="Q">vierteljährlich</option><option value="H">halbjährlich</option><option value="J">jährlich</option></select></label>
+        <label for="sp-ret">Zinssatz p.a. (%)<input type="number" min="0" max="100" step="any" id="sp-ret" inputmode="decimal"></label>
+        <label for="sp-end">Endkapital (CHF)<input type="number" min="0" step="any" id="sp-end" inputmode="decimal"></label>
+      </div>
+      <details class="more">
+        <summary>Weitere Angaben</summary>
+        <div class="spf">
+          <label for="sp-timing">Einzahlungsart<select id="sp-timing"><option value="pre">vorschüssig (Anfang der Periode)</option><option value="post">nachschüssig (Ende der Periode)</option></select></label>
+          <label for="sp-comp">Zinsperiode<select id="sp-comp"><option value="M">monatlich</option><option value="Q">vierteljährlich</option><option value="H">halbjährlich</option><option value="J">jährlich</option></select></label>
+          <label class="full" for="sp-rtype">Renditeberechnung<select id="sp-rtype"><option value="geo">geometrische Rendite (jährlich wirksamer Zins)</option><option value="arith">arithmetische Rendite (nominaler Zins, anteilig je Periode)</option></select></label>
+          <label class="chk full" for="sp-dyn"><input type="checkbox" id="sp-dyn"> Dynamik: Sparrate regelmässig erhöhen</label>
+          <label for="sp-dynpct">Erhöhung (%)<input type="number" min="0" step="any" id="sp-dynpct" inputmode="decimal"></label>
+          <label for="sp-dynfreq">Erhöhung<select id="sp-dynfreq"><option value="J">jährlich</option><option value="H">halbjährlich</option></select></label>
+          <label for="sp-allow">Freibetrag auf Erträge (CHF)<input type="number" min="0" step="any" id="sp-allow" inputmode="decimal"></label>
+          <label for="sp-tax">Steuersatz auf Erträge (%)<input type="number" min="0" max="100" step="any" id="sp-tax" inputmode="decimal"></label>
+        </div>
+      </details>
+      <p class="note">Das Feld der gesuchten Grösse ist gesperrt und zeigt das Ergebnis. Mit Steuersatz 0 bleiben die Erträge steuerfrei.</p>
+    </section>
+
+    <section class="sec half" id="sec-sp-ergebnis" aria-labelledby="h-sp-ergebnis" hidden>
+      <h2 id="h-sp-ergebnis">Dein Ergebnis</h2>
+      <div id="sp-result" role="status" aria-live="polite"></div>
+      <div class="adds"><button type="button" class="btn" id="sp-share">Ergebnis kopieren</button><button type="button" class="btn" id="sp-fromplan">Sparrate aus ETF-Sparplan übernehmen</button><span id="sp-msg" class="empty"></span></div>
+    </section>
+
+    <section class="sec" id="sec-sp-verlauf" aria-labelledby="h-sp-verlauf" hidden>
+      <h2 id="h-sp-verlauf">Verlauf des Sparplans <span class="tot" id="sp-unit"></span></h2>
+      <div class="sp" id="sp-chart"></div>
+      <details class="more"><summary>Tabelle anzeigen</summary><div class="tbl" id="sp-table"></div></details>
+    </section>
+
+    <section class="sec" id="sec-sp-mc" aria-labelledby="h-sp-mc" hidden>
+      <h2 id="h-sp-mc">Monte-Carlo-Simulation <span class="tot" id="mc-unit"></span></h2>
+      <p class="empty" style="margin-top:0">Die Simulation spielt viele zufällige Renditeverläufe durch. Sie nutzt Startkapital, Sparrate, Dauer und erwartete Rendite aus dem Sparplanrechner. Die Schwankung bestimmt, wie stark die Verläufe streuen.</p>
+      <div class="mcf">
+        <label for="sp-vol">Schwankung p.a. (%)<input type="number" min="0" max="100" step="any" id="sp-vol" inputmode="decimal"></label>
+        <label for="sp-n">Anzahl Simulationen<select id="sp-n"><option value="500">500</option><option value="1000">1000</option><option value="5000">5000</option><option value="10000">10000</option></select></label>
+        <label for="sp-target">Zielkapital (CHF, optional)<input type="number" min="0" step="any" id="sp-target" inputmode="decimal" placeholder="berechneter Endwert"></label>
+        <button type="button" class="btn" id="mc-rerun">Neu würfeln</button>
+      </div>
+      <div id="mc-kpi"></div>
+      <div class="sp" id="mc-fan"></div>
+      <h3 style="margin-top:18px">Verteilung des Endkapitals</h3>
+      <div class="sp" id="mc-hist"></div>
+      <p class="note">Richtwerte für die Schwankung: Anleihen etwa 5 %, breite Aktien-ETFs etwa 15 %. Die Simulation rechnet monatlich mit zufälligen Renditen, die im Mittel der erwarteten Rendite entsprechen. Sie ist eine Modellrechnung vor Steuern, keine Prognose, und die Zinsperiode aus den weiteren Angaben spielt hier keine Rolle.</p>
+    </section>
+    <section class="sec" id="sec-fi-filter" aria-labelledby="h-fi-filter" hidden>
+      <h2 id="h-fi-filter">ETF-Finder: Filter</h2>
+      <p class="empty" style="margin-top:0">Die Voreinstellung entspricht dem Link von etfschweiz.ch: Kategorie All-World, in CHF handelbar, ohne Small Caps, sparplanfähig.</p>
+      <div class="fif">
+        <label for="fi-cat">Kategorie<select id="fi-cat"><option value="all">Alle</option><option value="all-world">All-World</option><option value="developed">Industrieländer</option><option value="emerging">Schwellenländer</option><option value="small">Small Caps</option></select></label>
+        <label for="fi-sc">Small Caps<select id="fi-sc"><option value="any">egal</option><option value="no">Nein</option><option value="yes">Ja</option></select></label>
+        <label for="fi-esg">ESG<select id="fi-esg"><option value="any">egal</option><option value="no">Nein</option><option value="yes">Ja</option></select></label>
+        <label for="fi-div">Dividenden<select id="fi-div"><option value="any">egal</option><option value="acc">thesaurierend (acc)</option><option value="dist">ausschüttend (dist)</option></select></label>
+        <label for="fi-sort">Sortierung<select id="fi-sort"><option value="ter">TER aufsteigend</option><option value="name">Name</option></select></label>
+      </div>
+      <div class="fif2">
+        <label class="chk"><input type="checkbox" id="fi-chf"> In CHF handelbar</label>
+        <label class="chk"><input type="checkbox" id="fi-sp"> Sparplanfähig</label>
+        <label class="chk"><input type="checkbox" id="fi-strict"> Nur belegte Treffer</label>
+        <span class="fi-br"><b>Broker:</b>
+          <label class="chk"><input type="checkbox" data-br="saxo"> Saxo</label>
+          <label class="chk"><input type="checkbox" data-br="yuh"> Yuh</label>
+          <label class="chk"><input type="checkbox" data-br="neon"> neon</label>
+          <label class="chk"><input type="checkbox" data-br="swissquote"> Swissquote</label></span>
+        <button type="button" class="mini" id="fi-reset">Filter zurücksetzen</button>
+      </div>
+    </section>
+
+    <section class="sec" id="sec-fi-result" aria-labelledby="h-fi-result" hidden>
+      <h2 id="h-fi-result">ETF-Finder: Ergebnisse <span class="tot" id="fi-count"></span></h2>
+      <div class="tbl" id="fi-table"></div>
+      <details class="more" id="fi-unk-wrap" hidden><summary id="fi-unk-sum"></summary><p class="note" style="margin-top:0">Bei diesen ETFs fehlt mir eine Angabe, die ein aktiver Filter braucht. Sie passen eventuell trotzdem. Bitte auf justETF oder beim Broker prüfen.</p><div class="tbl" id="fi-unk"></div></details>
+      <p class="note" id="fi-note"></p>
+    </section>
+  </main>
+  <p class="foot">Berechnungen laufen nur in diesem Browser. Es werden keine Daten übertragen.</p>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const fmt=n=>{const r=Math.round(n);return (r<0?'−':'')+Math.abs(r).toLocaleString('de-CH')};
+const fmtS=n=>n>=1e6?(n/1e6).toFixed(1).replace('.',',')+' Mio.':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n));
+const pc=(a,b)=>b>0?Math.round(a/b*100):0;
+const sum=a=>a.reduce((x,y)=>x+y,0);
+
+const CATS=[
+ {id:'wohnen',name:'Wohnen',grp:'need'},
+ {id:'mobil',name:'Mobilität',grp:'need'},
+ {id:'vers',name:'Versicherungen & Gesundheit',grp:'need'},
+ {id:'steuer',name:'Steuern & Abgaben',grp:'need'},
+ {id:'essen',name:'Essen & Haushalt',grp:'need'},
+ {id:'frei',name:'Freizeit & Ferien',grp:'want'},
+ {id:'spar',name:'Sparen & Vorsorge',grp:'save'},
+ {id:'sonst',name:'Sonstiges',grp:'want'}];
+const FQ={M:1,Q:1/3,H:1/6,J:1/12};
+const FQN={M:'monatlich',Q:'vierteljährlich',H:'halbjährlich',J:'jährlich'};
+const INC_CHIPS=[['Nettolohn','M'],['13. Monatslohn','J'],['Bonus','J'],['Mieteinnahmen','M'],['Dividenden / Zinsen','J'],['Rente (AHV / PK)','M'],['Kinderzulagen','M']];
+const EXP_CHIPS=[['Miete / Hypothekarzins','wohnen','M',0],['Nebenkosten','wohnen','M',0],['Krankenkasse','vers','M',0],['Hausrat / Haftpflicht','vers','J',0],['Steuern','steuer','J',0],['Auto','mobil','M',0],['ÖV / Generalabo','mobil','J',0],['Lebensmittel','essen','M',0],['Telefon & Internet','sonst','M',0],['Ferien','frei','J',0],['Abos','frei','M',0],['Säule 3a','spar','J',7258]];
+const PK3A=7258; /* max. Säule 3a mit Pensionskasse, Stand 2026 */
+/* Fonds mit Fondswährung CHF oder EUR, an der SIX gehandelt (Angaben laut justETF und Anbietern, Stand Nov 2026, bitte aktuell prüfen) */
+const FUNDS={
+ 'IE000N6LBS91':{name:'UBS Core MSCI World UCITS ETF hCHF acc',fc:'CHF',tr:'CHF',ter:'0,09 %',tk:'WORLD'},
+ 'IE0009KLWT21':{name:'Xtrackers MSCI World UCITS ETF 3C - CHF Hedged',fc:'CHF',tr:'CHF',ter:'0,14 %',tk:'XWCH'},
+ 'IE00B8BVCK12':{name:'iShares MSCI World CHF Hedged UCITS ETF (Acc)',fc:'CHF',tr:'CHF',ter:'0,55 %',tk:'IWDC'},
+ 'IE000WMRNBB0':{name:'HSBC MSCI World UCITS ETF CHF hedged',fc:'CHF',tr:'CHF',ter:'0,16 %',tk:'HWDC'},
+ 'IE000SHR0UX9':{name:'Invesco FTSE All-World UCITS ETF CHF PfHdg Acc',fc:'CHF',tr:'CHF',ter:'0,20 %',tk:'FWCA'},
+ 'LU0977261329':{name:'UBS MSCI Switzerland 20/35 UCITS ETF CHF acc',fc:'CHF',tr:'CHF',ter:'0,20 %'},
+ 'CH0017142719':{name:'UBS ETF (CH) - SMI (CHF) A-dis',fc:'CHF',tr:'CHF',ter:'0,22 %'},
+ 'IE00BH04GL39':{name:'Vanguard EUR Eurozone Government Bond UCITS ETF (EUR) Accumulating',fc:'EUR',tr:'CHF',ter:'0,07 %',tk:'VETA'}};
+const ISINDB=Object.fromEntries(Object.entries(FUNDS).map(([k,v])=>[k,v.name]));
+const ETFS=['IE000N6LBS91','IE000SHR0UX9','LU0977261329'].map(i=>({isin:i,name:FUNDS[i].name,short:FUNDS[i].name.replace(' UCITS ETF','').replace(' CHF PfHdg Acc',' (CHF)').replace(' 20/35 UCITS ETF CHF acc',' 20/35')}));
+const SER={light:['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#6250d6','#e34948'],dark:['#3987e5','#d95926','#199e70','#c98500','#d55181','#008300','#9085e9','#e66767']};
+const TONE={light:{'--ink':'#14202b','--ink2':'#4b5b68','--line':'rgba(20,32,43,.18)','--field':'rgba(255,255,255,.7)'},dark:{'--ink':'#eef3f7','--ink2':'#b4c2cd','--line':'rgba(238,243,247,.24)','--field':'rgba(0,0,0,.25)'}};
+const SECS=[['situation','Lebenssituation','b'],['ergebnis','Ergebnis','b'],['einnahmen','Einnahmen','b'],['ausgaben','Ausgaben','b'],['grafiken','Grafiken','b'],['verwendung','Verwendung des Überschusses','b'],['projektion','Vermögensprojektion','b'],['regel','Faustregel 50/30/20','b'],['daten','Daten sichern','b'],['sp-eingabe','Sparplan: Eingaben','s'],['sp-ergebnis','Sparplan: Ergebnis','s'],['sp-verlauf','Sparplan: Verlauf','s'],['sp-mc','Sparplan: Monte-Carlo','s'],['fi-filter','ETF-Finder: Filter','f'],['fi-result','ETF-Finder: Ergebnisse','f']];
+const tabOf=id=>SECS.find(x=>x[0]===id)[2];
+let curTab='b';
+const PRESETS=[['Standard',null,null],['Dunkel','#10161b','#1b242c'],['Blaugrau','#dde6ee','#f7fafc'],['Sand','#efe7da','#fbf7ef'],['Nachtblau','#0b1b33','#13294b'],['Salbei','#e3ebe3','#f6faf5']];
+const DEF_SPAN={'fi-filter':12,'fi-result':12,situation:12,'sp-mc':12,ergebnis:12,einnahmen:6,ausgaben:6,grafiken:12,verwendung:12,projektion:6,regel:6,daten:12,'sp-eingabe':6,'sp-ergebnis':6,'sp-verlauf':12};
+const DEF_LAYOUT=()=>({order:SECS.map(s=>s[0]),span:{...DEF_SPAN},height:{},bg:{},ink:{},colors:{},collapsed:{},ver:3});
+
+let uid=1;const nid=()=>'i'+(uid++);
+const SPDEF=()=>({mode:'end',start:0,rate:0,intv:'M',ret:0,end:0,years:0,mcVol:15,mcN:1000,mcTarget:0,timing:'pre',comp:'M',retType:'geo',dyn:false,dynPct:2,dynFreq:'J',allow:0,tax:0});
+const FIDEF=()=>({cat:'all-world',sc:'no',esg:'any',div:'any',chf:true,sp:true,strict:false,brokers:[],sort:'ter'});
+const EMPTY=()=>({fiSel:[],fi:FIDEF(),life:'',sp:SPDEF(),plan:[],income:[],expense:[],view:'month',reserve:0,pct:[25,20,45,10],autoAlloc:true,projAuto:true,projMonthly:0,ret:0,years:0});
+const SAMPLE=()=>({fiSel:[],fi:FIDEF(),life:'',sp:Object.assign(SPDEF(),{rate:500,ret:5,end:100000,years:20}),plan:[{id:nid(),isin:'IE000N6LBS91',name:'UBS Core MSCI World UCITS ETF hCHF acc',amount:600}],view:'month',reserve:8000,pct:[50,15,30,5],autoAlloc:true,projAuto:true,projMonthly:0,ret:5,years:20,
+ income:[{id:nid(),name:'Nettolohn',amount:6500,freq:'M'},{id:nid(),name:'13. Monatslohn',amount:6500,freq:'J'},{id:nid(),name:'Nebenerwerb',amount:400,freq:'M'}],
+ expense:[
+  {id:nid(),name:'Miete / Hypothekarzins',cat:'wohnen',amount:1900,freq:'M'},
+  {id:nid(),name:'Krankenkasse',cat:'vers',amount:410,freq:'M'},
+  {id:nid(),name:'Auto',cat:'mobil',amount:380,freq:'M'},
+  {id:nid(),name:'Steuern',cat:'steuer',amount:9000,freq:'J'},
+  {id:nid(),name:'Lebensmittel',cat:'essen',amount:850,freq:'M'},
+  {id:nid(),name:'Freizeit & Ausgang',cat:'frei',amount:450,freq:'M'},
+  {id:nid(),name:'Ferien',cat:'frei',amount:5000,freq:'J'},
+  {id:nid(),name:'Telefon & Internet',cat:'sonst',amount:120,freq:'M'}]});
+let S=EMPTY(), L=DEF_LAYOUT();
+const KEY='budgetrechner-v1';
+
+/* ---------- Speichern / Laden ---------- */
+function save(){try{localStorage.setItem(KEY,JSON.stringify({S,L}))}catch(e){}}
+function load(){try{const r=localStorage.getItem(KEY);if(!r)return;const o=JSON.parse(r);adopt(o)}catch(e){}}
+function adopt(o){
+  if(o&&o.S&&Array.isArray(o.S.income)&&Array.isArray(o.S.expense)){S=Object.assign(EMPTY(),o.S);}
+  if(o&&o.L&&Array.isArray(o.L.order)){const d=DEF_LAYOUT();L=Object.assign(d,o.L);
+    SECS.forEach((s,i)=>{if(L.order.includes(s[0]))return;const nx=SECS.slice(i+1).map(x=>x[0]).find(id=>L.order.includes(id));if(nx)L.order.splice(L.order.indexOf(nx),0,s[0]);else L.order.push(s[0])});L.order=L.order.filter(id=>SECS.some(s=>s[0]===id));
+    L.span=Object.assign(d.span,o.L.span||{});
+    if(!o.L.span&&o.L.width)Object.keys(o.L.width).forEach(k=>{L.span[k]=o.L.width[k]==='half'?6:12});
+    delete L.width;L.height=o.L.height||{};L.bg=o.L.bg||{};L.ink=o.L.ink||{};L.colors=o.L.colors||{};L.collapsed=o.L.collapsed||{};
+    if(o.L.pageBg&&!L.colors.pageBg)L.colors.pageBg=o.L.pageBg;delete L.pageBg;
+    if(!(o.L.ver>=2)){L.order=L.order.filter(id=>id!=='situation');L.order.unshift('situation')}L.ver=3;}
+  S.sp=Object.assign(SPDEF(),(o&&o.S&&o.S.sp)||{});
+  S.fi=Object.assign(FIDEF(),(o&&o.S&&o.S.fi)||{});if(!Array.isArray(S.fi.brokers))S.fi.brokers=[];
+  if(!Array.isArray(S.fiSel))S.fiSel=[];
+  S.plan=Array.isArray(o&&o.S&&o.S.plan)?o.S.plan:[];
+  [...S.income,...S.expense,...S.plan].forEach(it=>{if(!it.id)it.id=nid()});
+  const mx=Math.max(0,...[...S.income,...S.expense,...S.plan].map(it=>parseInt(String(it.id).replace(/\D/g,''))||0));
+  uid=Math.max(uid,mx+1);
+}
+
+/* ---------- Berechnung ---------- */
+function calc(){
+  const inc=S.income.map(i=>({...i,m:(+i.amount||0)*(FQ[i.freq]||1)}));
+  const exp=S.expense.map(i=>({...i,m:(+i.amount||0)*(FQ[i.freq]||1)}));
+  const incM=sum(inc.map(i=>i.m)),expM=sum(exp.map(i=>i.m));
+  const byCat=CATS.map((c,k)=>({...c,k,m:sum(exp.filter(e=>e.cat===c.id).map(e=>e.m))}));
+  return {inc,exp,incM,expM,sur:incM-expM,byCat};
+}
+const mul=()=>S.view==='year'?12:1;
+const val=m=>m*mul();
+const unit=()=>S.view==='year'?'pro Jahr':'pro Monat';
+
+/* ---------- Zeilen ---------- */
+function rowColor(kind,it){const i=kind==='inc'?S.income.indexOf(it):Math.max(0,CATS.findIndex(c=>c.id===it.cat));return 'var(--s'+((i%8)+1)+')'}
+function meqHTML(it){const m=(+it.amount||0)*(FQ[it.freq]||1);return it.amount>0?`≈ <b>CHF ${fmt(m)}</b> pro Monat · <b>CHF ${fmt(m*12)}</b> pro Jahr`:'Betrag eintragen'}
+function rowHTML(kind,it){
+  const p=kind+'-'+it.id;
+  const cat=kind==='exp'?`<label class="c-cat" for="${p}-cat">Kategorie<select class="cat" id="${p}-cat" data-f="cat">${CATS.map(c=>`<option value="${c.id}"${c.id===it.cat?' selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`:'';
+  return `<div class="row ${kind}" data-id="${it.id}" style="--rc:${rowColor(kind,it)}">
+   <label class="c-nm" for="${p}-name">Bezeichnung<input class="nm" id="${p}-name" data-f="name" type="text" value="${esc(it.name)}" placeholder="z. B. ${kind==='inc'?'Nettolohn':'Miete'}" list="dl-${kind}"></label>
+   <label class="c-am" for="${p}-amt">Betrag CHF<input class="am" id="${p}-amt" data-f="amount" type="number" min="0" step="any" inputmode="decimal" value="${it.amount||''}" placeholder="0" aria-label="Betrag in CHF"></label>
+   <label class="c-fq" for="${p}-fq">Rhythmus<select class="fq" id="${p}-fq" data-f="freq">${Object.keys(FQN).map(k=>`<option value="${k}"${k===it.freq?' selected':''}>${FQN[k]}</option>`).join('')}</select></label>
+   <button type="button" class="del" data-act="del" aria-label="Posten entfernen">×</button>${cat}
+   <div class="meq">${meqHTML(it)}</div></div>`;
+}
+function renderRows(focusLast){
+  $('inc-list').innerHTML=S.income.length?S.income.map(i=>rowHTML('inc',i)).join(''):'<p class="empty">Noch keine Einnahmen erfasst.</p>';
+  $('exp-list').innerHTML=S.expense.length?S.expense.map(i=>rowHTML('exp',i)).join(''):'<p class="empty">Noch keine Ausgaben erfasst.</p>';
+  if(focusLast){const l=$(focusLast==='inc'?'inc-list':'exp-list');const r=l.querySelectorAll('.row');if(r.length){const a=r[r.length-1].querySelector('.am');if(a)a.focus()}}
+}
+function bindList(listId,kind){
+  const el=$(listId),arr=()=>kind==='inc'?S.income:S.expense;
+  el.addEventListener('input',e=>{const row=e.target.closest('.row');if(!row)return;const it=arr().find(x=>x.id===row.dataset.id);if(!it)return;const f=e.target.dataset.f;if(!f)return;
+    it[f]=f==='amount'?(parseFloat(e.target.value)||0):e.target.value;row.querySelector('.meq').innerHTML=meqHTML(it);if(f==='cat')row.style.setProperty('--rc',rowColor(kind,it));update();});
+  el.addEventListener('click',e=>{const b=e.target.closest('[data-act="del"]');if(!b)return;const row=b.closest('.row');const a=arr();const i=a.findIndex(x=>x.id===row.dataset.id);if(i>=0){a.splice(i,1);renderRows();update();}});
+}
+function chips(){
+  $('inc-chips').innerHTML=INC_CHIPS.map((c,i)=>`<button type="button" class="mini" data-i="${i}">${esc(c[0])}</button>`).join('');
+  $('exp-chips').innerHTML=EXP_CHIPS.map((c,i)=>`<button type="button" class="mini" data-i="${i}">${esc(c[0])}</button>`).join('');
+  $('inc-chips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const c=INC_CHIPS[+b.dataset.i];S.income.push({id:nid(),name:c[0],amount:0,freq:c[1]});renderRows('inc');update();});
+  $('exp-chips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const c=EXP_CHIPS[+b.dataset.i];S.expense.push({id:nid(),name:c[0],cat:c[1],freq:c[2],amount:c[3]});renderRows('exp');update();});
+}
+
+/* ---------- Ergebnis ---------- */
+function renderHero(c){
+  const sur=c.sur,st=Math.abs(sur)<0.5?'zero':sur>0?'good':'bad';
+  const lab={good:'▲ Überschuss',bad:'▼ Defizit',zero:'● Ausgeglichen'}[st];
+  const m=mul(),other=m===1?12:1,otherU=m===1?'pro Jahr':'pro Monat';
+  const sign=st==='good'?'+ ':st==='bad'?'− ':'';
+  const ratio=c.incM>0?c.expM/c.incM:(c.expM>0?2:0);
+  const spar=c.byCat.find(x=>x.id==='spar').m;
+  const rate=c.incM>0?(spar+Math.max(sur,0))/c.incM*100:0;
+  const months=c.expM>0?S.reserve/c.expM:null;
+  $('hero').innerHTML=`<div class="hero ${st}">
+   <div><span class="badge">${lab}</span>
+    <div class="big">${sign}CHF ${fmt(Math.abs(sur)*m)}</div>
+    <div class="per">${unit()} · entspricht CHF ${fmt(Math.abs(sur)*other)} ${otherU}</div></div>
+   <div class="kpis">
+    <div class="kpi"><b>CHF ${fmt(c.incM*m)}</b><span>Einnahmen ${unit()}</span></div>
+    <div class="kpi"><b>CHF ${fmt(c.expM*m)}</b><span>Ausgaben ${unit()}</span></div>
+    <div class="kpi"><b>${c.incM>0?Math.round(rate)+' %':'–'}</b><span>Sparquote</span></div>
+   </div>
+   <div class="meter"><div class="lab"><span>Ausgaben im Verhältnis zu den Einnahmen</span><span><b>${c.incM>0?Math.round(c.expM/c.incM*100)+' %':'–'}</b>${months!==null&&S.reserve>0?' · Reserve deckt '+months.toFixed(1).replace('.',',')+' Monate':''}</span></div>
+    <div class="track"><i style="width:${Math.min(100,ratio*100)}%"></i></div></div>
+  </div>`;
+}
+
+/* ---------- Grafiken ---------- */
+function donutHTML(items,centerTop,centerSub){
+  const tot=sum(items.map(i=>i.v));
+  if(tot<=0)return '<p class="empty">Noch keine Werte erfasst.</p>';
+  const R=64,C=2*Math.PI*R;let cum=0,circles='';
+  items.forEach(it=>{const len=it.v/tot*C,gap=items.length>1?2.5:0;
+    circles+=`<circle cx="100" cy="100" r="${R}" fill="none" stroke="${it.color}" stroke-width="26" stroke-dasharray="${Math.max(len-gap,.5).toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${(-cum).toFixed(2)}" transform="rotate(-90 100 100)" data-tip="${esc(it.label)}: CHF ${fmt(val(it.v))} (${pc(it.v,tot)} %)"/>`;cum+=len;});
+  const lg=items.map(it=>`<li><i style="background:${it.color}"></i><span>${esc(it.label)}</span><span class="v">${fmt(val(it.v))} <small>${pc(it.v,tot)} %</small></span></li>`).join('');
+  return `<div class="donut-wrap"><svg viewBox="0 0 200 200" role="img" aria-label="Verteilung">${circles}<text class="ctr" x="100" y="99" text-anchor="middle">CHF ${fmt(val(tot))}</text><text class="ctr2" x="100" y="115" text-anchor="middle">${centerSub}</text></svg><ul class="legend">${lg}</ul></div>`;
+}
+function fold(items,n){if(items.length<=n)return items;const head=items.slice(0,n-1),rest=items.slice(n-1);return [...head,{label:'Weitere ('+rest.length+')',v:sum(rest.map(x=>x.v)),color:'var(--muted)'}]}
+function renderCharts(c){
+  $('chart-unit').textContent='CHF '+unit();
+  const incItems=fold(c.inc.map((i,k)=>({label:i.name||'Ohne Namen',v:i.m,color:`var(--s${(k%8)+1})`})).filter(x=>x.v>0),8);
+  $('ch-inc').innerHTML=donutHTML(incItems,'',unit());
+  const cats=c.byCat.filter(x=>x.m>0).sort((a,b)=>b.m-a.m);
+  if(!cats.length){$('ch-exp').innerHTML='<p class="empty">Noch keine Werte erfasst.</p>'}
+  else{const mx=cats[0].m;
+    $('ch-exp').innerHTML=cats.map(x=>`<div class="hbar" data-tip="${esc(x.name)}: CHF ${fmt(val(x.m))} (${pc(x.m,c.expM)} % der Ausgaben)"><span>${esc(x.name)}</span><span class="track"><i style="width:${x.m/mx*100}%;background:var(--s${x.k+1})"></i></span><span class="hv">${fmt(val(x.m))} <small>${pc(x.m,c.expM)} %</small></span></div>`).join('');}
+  /* Geldfluss */
+  const segs=cats.slice().sort((a,b)=>a.k-b.k).map(x=>({label:x.name,v:x.m,color:`var(--s${x.k+1})`}));
+  if(c.sur>0.5)segs.push({label:'Überschuss',v:c.sur,color:'var(--good)'});
+  const total=Math.max(c.incM,c.expM);
+  if(total<=0){$('ch-flow').innerHTML='<p class="empty">Noch keine Werte erfasst.</p>';return}
+  const mark=c.sur<-0.5?`<div class="mark" style="left:${c.incM/total*100}%"><span style="${c.incM/total>.85?'transform:translateX(-100%)':''}">Einnahmen CHF ${fmt(val(c.incM))}</span></div>`:'';
+  $('ch-flow').innerHTML=`<div class="flowbar" role="img" aria-label="Verteilung der Einnahmen auf Ausgaben und Überschuss">${segs.map(s=>`<i style="flex-grow:${s.v};background:${s.color}" data-tip="${esc(s.label)}: CHF ${fmt(val(s.v))} (${pc(s.v,total)} %)"></i>`).join('')}${mark}</div>
+   <ul class="legend inline">${segs.map(s=>`<li><i style="background:${s.color}"></i><span>${esc(s.label)}</span></li>`).join('')}</ul>
+   ${c.sur<-0.5?`<p class="note"><b>Defizit:</b> Die Ausgaben übersteigen die Einnahmen um CHF ${fmt(val(-c.sur))} ${unit()}. Die Linie markiert die Einnahmen.</p>`:''}`;
+}
+
+/* ---------- Verwendung ---------- */
+function recommend(c){
+  const months=c.expM>0?S.reserve/c.expM:99;
+  return months<3?[50,15,30,5]:months<6?[25,20,45,10]:[0,20,60,20];
+}
+const PIDS=['pct-res','pct-3a','pct-etf','pct-free'];
+function renderUse(c){
+  const pos=$('use-pos'),neg=$('use-neg');
+  if(c.sur>0.5){
+    pos.hidden=false;neg.hidden=true;
+    if(S.autoAlloc)S.pct=recommend(c);
+    PIDS.forEach((id,i)=>{if(document.activeElement!==$(id))$(id).value=S.pct[i]});
+    if(document.activeElement!==$('reserve'))$('reserve').value=S.reserve||'';
+    const months=c.expM>0?S.reserve/c.expM:0;
+    $('use-intro').innerHTML=`Dein Überschuss beträgt <b>CHF ${fmt(c.sur)}</b> pro Monat (CHF ${fmt(c.sur*12)} pro Jahr). Die Reserve deckt ${months.toFixed(1).replace('.',',')} Monatsausgaben. Als Ziel gelten 3 bis 6 Monate. Die Aufteilung unten ist ein Vorschlag, den du anpassen kannst.`;
+    const tp=sum(S.pct);
+    $('alloc-warn').textContent=tp!==100?`Die Prozente ergeben ${tp} %. Für eine vollständige Verteilung sollten es 100 % sein.`:'';
+    const div=tp>0?tp:1;
+    let a=S.pct.map(p=>c.sur*p/div);
+    const cap=PK3A/12;let capped=false;
+    if(a[1]>cap){a[2]+=a[1]-cap;a[1]=cap;capped=true}
+    const need3=c.expM*3,need6=c.expM*6;
+    const cards=[
+     {t:'Notfallreserve',v:a[0],c:'var(--s1)',p:`Ziel: CHF ${fmt(need3)} bis ${fmt(need6)} (3 bis 6 Monatsausgaben), am besten auf einem Sparkonto.`},
+     {t:'Säule 3a',v:a[1],c:'var(--s3)',p:`Steuerlich abziehbar. Höchstbetrag mit Pensionskasse CHF ${fmt(PK3A)} pro Jahr (Stand 2026, bitte prüfen).${capped?' Der Rest ging in den ETF-Sparplan.':''}`},
+     {t:'ETF-Sparplan',v:a[2],c:'var(--s2)',p:'Langfristiger Vermögensaufbau, zum Beispiel mit einem breit gestreuten Welt-ETF.'},
+     {t:'Frei verfügbar',v:a[3],c:'var(--s5)',p:'Für Wünsche und Unvorhergesehenes, damit das Budget alltagstauglich bleibt.'}];
+    $('alloc-cards').innerHTML=cards.map(x=>`<div class="acard" style="--c:${x.c}"><h3>${x.t}</h3><div class="amt">CHF ${fmt(x.v)}</div><div class="per">pro Monat · CHF ${fmt(x.v*12)} pro Jahr</div><p>${x.p}</p></div>`).join('');
+  }else{
+    pos.hidden=true;neg.hidden=false;
+    if(c.sur>=-0.5){neg.innerHTML='<p class="empty" style="margin:0">Das Budget ist ausgeglichen. Ein Überschuss entsteht, sobald die Ausgaben unter den Einnahmen liegen. Erste Priorität wäre dann der Aufbau einer Reserve von drei bis sechs Monatsausgaben.</p>';return}
+    const variable=sum(c.byCat.filter(x=>['frei','essen','sonst'].includes(x.id)).map(x=>x.m));
+    const cut=variable>0?Math.min(100,-c.sur/variable*100):null;
+    const top=c.exp.slice().sort((a,b)=>b.m-a.m).slice(0,3).filter(x=>x.m>0);
+    neg.innerHTML=`<p style="margin:0 0 8px"><b>Es entsteht ein Defizit von CHF ${fmt(-c.sur)} pro Monat</b> (CHF ${fmt(-c.sur*12)} pro Jahr). Ein Überschuss lässt sich nicht verwenden, solange die Ausgaben höher sind als die Einnahmen. Mögliche Schritte:</p>
+     <ul class="ul-tight">
+      ${cut!==null?`<li>Die variablen Ausgaben (Essen, Freizeit, Sonstiges: CHF ${fmt(variable)}) um ${cut>=100?'mehr als 100':Math.ceil(cut)} % senken${cut>=100?', das reicht allein nicht.':'.'}</li>`:''}
+      ${top.length?`<li>Die grössten Posten prüfen: ${top.map(x=>esc(x.name||'Ohne Namen')+' (CHF '+fmt(x.m)+' pro Monat)').join(', ')}.</li>`:''}
+      <li>Versicherungen, Abos und Telefonverträge vergleichen und Kündigungsfristen notieren.</li>
+      <li>Zusätzliche Einnahmen prüfen, zum Beispiel Nebenerwerb oder Untervermietung.</li>
+     </ul>`;
+  }
+}
+
+/* ---------- Projektion ---------- */
+function etfAmount(c){
+  if(c.sur<=0.5)return 0;
+  const tp=sum(S.pct)||1;let a=S.pct.map(p=>c.sur*p/tp);const cap=PK3A/12;
+  if(a[1]>cap){a[2]+=a[1]-cap}
+  return a[2];
+}
+function niceMax(v){if(v<=0)return 1;const e=Math.pow(10,Math.floor(Math.log10(v)));const f=v/e;return (f<=1?1:f<=2?2:f<=5?5:10)*e}
+function renderProj(c){
+  const pt=planTotal(),pm=S.projAuto?(pt>0?pt:etfAmount(c)):S.projMonthly;
+  if(S.projAuto&&document.activeElement!==$('pj-m'))$('pj-m').value=Math.round(pm)||'';
+  if(document.activeElement!==$('pj-r'))$('pj-r').value=S.ret;
+  if(document.activeElement!==$('pj-y'))$('pj-y').value=S.years;
+  const Y=Math.max(1,Math.min(50,Math.round(S.years)||1)),r=Math.max(0,S.ret)/100,rm=Math.pow(1+r,1/12)-1;
+  const dep=[0],vals=[0];let v=0;
+  for(let y=1;y<=Y;y++){for(let k=0;k<12;k++){v=(v+pm)*(1+rm)}dep.push(pm*12*y);vals.push(v)}
+  const W=520,H=230,ml=46,mr=70,mt=14,mb=28,pw=W-ml-mr,ph=H-mt-mb;
+  const mx=niceMax(Math.max(vals[Y],1000)),X=y=>ml+y/Y*pw,Yp=a=>mt+ph-a/mx*ph;
+  let g='';
+  for(let i=0;i<=4;i++){const a=mx*i/4;g+=`<line class="grid-l" x1="${ml}" x2="${W-mr}" y1="${Yp(a)}" y2="${Yp(a)}"/><text x="${ml-6}" y="${Yp(a)+4}" text-anchor="end">${fmtS(a)}</text>`}
+  const step=Y<=10?1:Y<=20?2:Y<=30?5:10;
+  for(let y=0;y<=Y;y+=step)g+=`<text x="${X(y)}" y="${H-8}" text-anchor="middle">${y}</text>`;
+  const line=a=>a.map((x,y)=>`${y?'L':'M'}${X(y).toFixed(1)} ${Yp(x).toFixed(1)}`).join(' ');
+  const area=`${line(vals)} L${X(Y)} ${Yp(0)} L${X(0)} ${Yp(0)} Z`;
+  $('pj').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Entwicklung des Vermögens über ${Y} Jahre" data-W="${W}" data-ml="${ml}" data-pw="${pw}" data-Y="${Y}">
+   ${g}
+   <path d="${area}" fill="var(--s1)" opacity=".14"/>
+   <path d="${line(dep)}" fill="none" stroke="var(--s2)" stroke-width="2" stroke-linejoin="round"/>
+   <path d="${line(vals)}" fill="none" stroke="var(--s1)" stroke-width="2.5" stroke-linejoin="round"/>
+   <circle cx="${X(Y)}" cy="${Yp(vals[Y])}" r="4.5" fill="var(--s1)" stroke="var(--sbg,var(--surface))" stroke-width="2"/>
+   <circle cx="${X(Y)}" cy="${Yp(dep[Y])}" r="4.5" fill="var(--s2)" stroke="var(--sbg,var(--surface))" stroke-width="2"/>
+   <text class="lbl" x="${X(Y)+8}" y="${Yp(vals[Y])+(Yp(vals[Y])>Yp(dep[Y])-14?-6:4)}">${fmtS(vals[Y])}</text>
+   <text class="lbl" x="${X(Y)+8}" y="${Yp(dep[Y])+(Yp(dep[Y])-Yp(vals[Y])<14?14:4)}">${fmtS(dep[Y])}</text>
+   <line id="pj-cross" x1="0" x2="0" y1="${mt}" y2="${mt+ph}" stroke="var(--ink)" opacity="0" stroke-width="1"/>
+   <rect class="hov" x="${ml}" y="${mt}" width="${pw}" height="${ph}" data-tip=""/>
+  </svg>
+  <ul class="legend inline" style="margin-top:6px"><li><i style="background:var(--s1)"></i><span>Vermögen mit Rendite</span></li><li><i style="background:var(--s2)"></i><span>Einzahlungen</span></li></ul>
+  <p style="margin:10px 0 0">${pm>0?`Nach <b>${Y} Jahren</b>: <b>CHF ${fmt(vals[Y])}</b>, davon CHF ${fmt(dep[Y])} eingezahlt und CHF ${fmt(vals[Y]-dep[Y])} Ertrag.`:'Kein Sparbetrag eingetragen. Trage links einen Betrag ein, um die Entwicklung zu sehen.'}</p>`;
+  $('pj')._data={dep,vals,Y};
+}
+function bindProj(){
+  $('pj-m').addEventListener('input',e=>{S.projAuto=false;S.projMonthly=Math.max(0,parseFloat(e.target.value)||0);update()});
+  $('pj-r').addEventListener('input',e=>{S.ret=Math.max(0,Math.min(15,parseFloat(e.target.value)||0));update()});
+  $('pj-y').addEventListener('input',e=>{S.years=Math.max(1,Math.min(50,parseInt(e.target.value)||1));update()});
+  $('pj').addEventListener('pointermove',e=>{
+    if(!e.target.classList||!e.target.classList.contains('hov'))return;
+    const svg=e.target.ownerSVGElement,d=$('pj')._data;if(!d)return;
+    const rect=svg.getBoundingClientRect(),W=+svg.dataset.w,ml=+svg.dataset.ml,pw=+svg.dataset.pw;
+    const xv=(e.clientX-rect.left)*(W/rect.width);
+    let y=Math.round((xv-ml)/pw*d.Y);y=Math.max(0,Math.min(d.Y,y));
+    const cx=ml+y/d.Y*pw,cr=$('pj-cross');cr.setAttribute('x1',cx);cr.setAttribute('x2',cx);cr.setAttribute('opacity','.4');
+    e.target.dataset.tip=`Jahr ${y}: Vermögen CHF ${fmt(d.vals[y])}, eingezahlt CHF ${fmt(d.dep[y])}`;
+  });
+  $('pj').addEventListener('pointerleave',()=>{const cr=$('pj-cross');if(cr)cr.setAttribute('opacity','0')});
+}
+
+/* ---------- Faustregel ---------- */
+function renderRule(c){
+  const inc=c.incM;
+  if(inc<=0){$('rule').innerHTML='<p class="empty">Trage Einnahmen ein, um den Vergleich zu sehen.</p>';return}
+  const need=sum(c.byCat.filter(x=>x.grp==='need').map(x=>x.m)),want=sum(c.byCat.filter(x=>x.grp==='want').map(x=>x.m));
+  const sp=c.byCat.find(x=>x.id==='spar').m+Math.max(c.sur,0);
+  const rows=[
+   {n:'Notwendiges und Fixes',sub:'Wohnen, Mobilität, Versicherungen, Steuern, Essen',v:need,t:50,max:true,col:'var(--s1)'},
+   {n:'Wünsche',sub:'Freizeit, Ferien, Sonstiges',v:want,t:30,max:true,col:'var(--s2)'},
+   {n:'Sparen',sub:'Sparen & Vorsorge plus Überschuss',v:sp,t:20,max:false,col:'var(--s3)'}];
+  $('rule').innerHTML=rows.map(r=>{const p=r.v/inc*100,ok=r.max?p<=r.t:p>=r.t;
+    return `<div class="rl" data-tip="${r.n}: ${Math.round(p)} % der Einnahmen (CHF ${fmt(val(r.v))} ${unit()})"><div class="top"><b>${r.n}</b><span>${Math.round(p)} % · CHF ${fmt(val(r.v))}</span></div>
+     <div class="track"><i style="width:${Math.max(0,Math.min(100,p))}%;background:${r.col}"></i><u style="left:${r.t}%"></u></div>
+     <div class="st"><span class="chip ${ok?'ok':'no'}">${ok?'✓ im Ziel':'! ausserhalb'}</span>${r.sub}. Richtwert ${r.max?'höchstens':'mindestens'} ${r.t} %.</div></div>`}).join('');
+}
+
+/* ---------- update ---------- */
+function update(){
+  const c=calc();
+  $('tot-inc').textContent='CHF '+fmt(c.incM*mul())+' '+unit();
+  $('tot-exp').textContent='CHF '+fmt(c.expM*mul())+' '+unit();
+  renderLife();renderHero(c);renderCharts(c);renderUse(c);renderPlanSum(c);renderProj(c);renderRule(c);save();
+}
+
+/* ---------- Darstellung ---------- */
+function lum(hex){const h=hex.replace('#','');const v=[0,2,4].map(i=>parseInt(h.substr(i,2),16)/255).map(x=>x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4));return .2126*v[0]+.7152*v[1]+.0722*v[2]}
+function toHex(css){const m=css.match(/\d+(\.\d+)?/g);if(!m)return '#ffffff';return '#'+m.slice(0,3).map(x=>Math.round(+x).toString(16).padStart(2,'0')).join('')}
+const SKEYS=['s1','s2','s3','s4','s5','s6','s7','s8'];
+const COLS=[['pageBg','Seitenhintergrund','--bg'],['pageInk','Seitentext','--ink'],['secBg','Kacheln: Hintergrund (alle)','--surface'],['secInk','Kacheln: Text (alle)','--ink'],['line','Rahmen und Linien','--line'],['accent','Akzent (Tabs, Knöpfe)','--accent'],['good','Überschuss','--good'],['bad','Defizit','--bad'],
+ ['s1','Diagramm 1 (Wohnen)','--s1'],['s2','Diagramm 2 (Mobilität)','--s2'],['s3','Diagramm 3 (Versicherungen)','--s3'],['s4','Diagramm 4 (Steuern)','--s4'],['s5','Diagramm 5 (Essen)','--s5'],['s6','Diagramm 6 (Freizeit)','--s6'],['s7','Diagramm 7 (Sparen)','--s7'],['s8','Diagramm 8 (Sonstiges)','--s8']];
+function lum(hex){const h=hex.replace('#','');const v=[0,2,4].map(i=>parseInt(h.substr(i,2),16)/255).map(x=>x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4));return .2126*v[0]+.7152*v[1]+.0722*v[2]}
+function toHex(css){
+  let m;const hx=n=>Math.max(0,Math.min(255,Math.round(n))).toString(16).padStart(2,'0');
+  if(/^color\(/.test(css)){m=css.match(/-?[\d.]+/g);if(!m)return '#ffffff';return '#'+m.slice(0,3).map(x=>hx(+x*255)).join('')}
+  m=css.match(/[\d.]+/g);if(!m)return '#ffffff';return '#'+m.slice(0,3).map(hx).join('')}
+function colorOf(varName){const pr=document.createElement('span');pr.style.cssText='position:absolute;visibility:hidden;color:var('+varName+')';(varName==='--page-bg'?document.body:document.body).appendChild(pr);const c=getComputedStyle(pr).color;pr.remove();return toHex(c)}
+function applyTone(el,bg,ink){
+  const props=['--sbg','--ink','--ink2','--line','--field',...SKEYS.map(k=>'--'+k)];
+  props.forEach(p=>el.style.removeProperty(p));
+  if(bg){const dark=lum(bg)<.4,t=TONE[dark?'dark':'light'],sr=SER[dark?'dark':'light'];
+    el.style.setProperty('--sbg',bg);Object.keys(t).forEach(k=>el.style.setProperty(k,t[k]));
+    if(!SKEYS.some(k=>L.colors[k]))sr.forEach((c,i)=>el.style.setProperty('--s'+(i+1),c));}
+  if(ink){el.style.setProperty('--ink',ink);el.style.setProperty('--ink2','color-mix(in srgb,'+ink+' 72%,transparent)');el.style.setProperty('--line','color-mix(in srgb,'+ink+' 22%,transparent)')}
+}
+function applyColors(){
+  const r=document.documentElement.style,b=document.body.style,C=L.colors;
+  ['--surface','--ink','--ink2','--line','--field','--accent','--on-accent','--good','--bad',...SKEYS.map(k=>'--'+k)].forEach(n=>r.removeProperty(n));
+  b.removeProperty('--page-bg');b.removeProperty('--page-ink');
+  const baseInk=getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+  if(C.secBg){r.setProperty('--surface',C.secBg);const t=TONE[lum(C.secBg)<.4?'dark':'light'];Object.keys(t).forEach(k=>r.setProperty(k,t[k]))}
+  if(C.secInk){r.setProperty('--ink',C.secInk);r.setProperty('--ink2','color-mix(in srgb,'+C.secInk+' 72%,transparent)');r.setProperty('--line','color-mix(in srgb,'+C.secInk+' 22%,transparent)')}
+  if(C.line)r.setProperty('--line',C.line);
+  if(C.accent){r.setProperty('--accent',C.accent);r.setProperty('--on-accent',lum(C.accent)<.45?'#ffffff':'#14202b')}
+  if(C.good)r.setProperty('--good',C.good);if(C.bad)r.setProperty('--bad',C.bad);
+  SKEYS.forEach(k=>{if(C[k])r.setProperty('--'+k,C[k])});
+  if(C.pageBg)b.setProperty('--page-bg',C.pageBg);
+  if(C.pageInk)b.setProperty('--page-ink',C.pageInk);
+  else if(C.pageBg)b.setProperty('--page-ink',lum(C.pageBg)<.4?'#eef3f7':'#14202b');
+  else if(C.secInk||C.secBg)b.setProperty('--page-ink',baseInk);
+}
+function applyLayout(){
+  applyColors();
+  L.order.forEach((id,i)=>{const el=$('sec-'+id);el.style.order=i;el.hidden=tabOf(id)!==curTab;
+    el.style.gridColumn='span '+(L.span[id]||12);el.style.height=L.height[id]?L.height[id]+'px':'';el.classList.toggle('hset',!!L.height[id]);
+    applyTone(el,L.bg[id]||null,L.ink[id]||null);
+    const f=!!L.collapsed[id];el.classList.toggle('folded',f);const fb=el.querySelector('.fold');if(fb){fb.setAttribute('aria-expanded',String(!f));fb.setAttribute('aria-label',(f?'Kachel ausklappen: ':'Kachel einklappen: ')+SECS.find(x=>x[0]===id)[1])}});
+}
+function renderColors(){
+  $('col-grid').innerHTML=COLS.map(c=>`<label class="colitem" for="col-${c[0]}"><span>${c[1]}</span><input type="color" id="col-${c[0]}" data-k="${c[0]}" value="${L.colors[c[0]]||colorOf(c[2])}"><button type="button" class="mini" data-r="${c[0]}" aria-label="${c[1]} zurücksetzen"${L.colors[c[0]]?'':' disabled'}>×</button></label>`).join('');
+}
+function renderSettings(){
+  renderColors();
+  const grp=[['b','Tab Budget'],['s','Tab Sparplanrechner'],['f','Tab ETF-Finder']];
+  $('lay-list').innerHTML=grp.map(g=>{const ids=L.order.filter(id=>tabOf(id)===g[0]);
+   return `<h3>${g[1]}</h3>`+ids.map((id,i)=>{const nm=SECS.find(s=>s[0]===id)[1];const el=$('sec-'+id);
+    const bg=L.bg[id]||toHex(getComputedStyle(el).backgroundColor),ink=L.ink[id]||toHex(getComputedStyle(el).color);
+    return `<div class="lay-row" data-id="${id}"><span class="nm" style="flex:1 1 180px;font-weight:500">${nm}</span>
+    <span><button type="button" class="mini" data-a="up" aria-label="${nm} nach oben"${i===0?' disabled':''}>↑</button> <button type="button" class="mini" data-a="down" aria-label="${nm} nach unten"${i===ids.length-1?' disabled':''}>↓</button></span>
+    <label>Breite <input type="number" min="2" max="12" step="1" data-a="w" id="w-${id}" value="${L.span[id]||12}" aria-label="Breite ${nm} in Spalten von 12"></label>
+    <label>Höhe (px) <input type="number" min="0" max="3000" step="10" data-a="h" id="h-${id}" value="${L.height[id]||0}" aria-label="Höhe ${nm} in Pixel, 0 für automatisch"></label>
+    <label>Hintergrund <input type="color" data-a="c" id="c-${id}" value="${bg}" aria-label="Hintergrundfarbe ${nm}"></label>
+    <label>Text <input type="color" data-a="t" id="t-${id}" value="${ink}" aria-label="Textfarbe ${nm}"></label>
+    <button type="button" class="mini" data-a="r">Farben zurück</button></div>`}).join('')}).join('');
+  $('presets').innerHTML=PRESETS.map((p,i)=>`<button type="button" class="mini" data-p="${i}">${p[0]}</button>`).join('');
+}
+function bindSettings(){
+  $('toggle-set').addEventListener('click',()=>{const p=$('settings');p.hidden=!p.hidden;$('toggle-set').setAttribute('aria-expanded',String(!p.hidden));if(!p.hidden)renderSettings()});
+  $('col-grid').addEventListener('input',e=>{const k=e.target.dataset.k;if(!k)return;L.colors[k]=e.target.value;const rb=e.target.parentElement.querySelector('[data-r]');if(rb)rb.disabled=false;applyLayout();save()});
+  $('col-grid').addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(!b)return;delete L.colors[b.dataset.r];applyLayout();renderColors();save()});
+  $('col-reset').addEventListener('click',()=>{L.colors={};L.bg={};L.ink={};applyLayout();renderSettings();save()});
+  $('lay-reset').addEventListener('click',()=>{const d=DEF_LAYOUT();L.order=d.order;L.span=d.span;L.height={};applyLayout();renderSettings();save()});
+  $('presets').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const p=PRESETS[+b.dataset.p];
+    if(p[1])L.colors.pageBg=p[1];else delete L.colors.pageBg;
+    delete L.colors.pageInk;L.bg={};L.ink={};if(p[2])L.order.forEach(id=>L.bg[id]=p[2]);applyLayout();renderSettings();save()});
+  const ll=$('lay-list');
+  ll.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const id=b.closest('.lay-row').dataset.id,a=b.dataset.a;
+    if(a==='up'||a==='down'){const same=L.order.filter(x=>tabOf(x)===tabOf(id)),j=same.indexOf(id),o=a==='up'?same[j-1]:same[j+1];
+      if(!o)return;const A=L.order.indexOf(id),B=L.order.indexOf(o);[L.order[A],L.order[B]]=[L.order[B],L.order[A]]}
+    else if(a==='r'){delete L.bg[id];delete L.ink[id]}
+    else return;
+    applyLayout();renderSettings();save();});
+  ll.addEventListener('input',e=>{const t=e.target,a=t.dataset.a;if(!a)return;const id=t.closest('.lay-row').dataset.id;
+    if(a==='c')L.bg[id]=t.value;else if(a==='t')L.ink[id]=t.value;
+    else if(a==='w')L.span[id]=Math.max(2,Math.min(12,parseInt(t.value)||12));
+    else if(a==='h'){const v=Math.max(0,Math.min(3000,parseInt(t.value)||0));if(v)L.height[id]=v;else delete L.height[id]}
+    else return;
+    applyLayout();save()});
+}
+/* ---------- Kacheln anordnen (Ziehen und Skalieren) ---------- */
+let drag=null;
+function initArrange(){
+  SECS.forEach(x=>{const sec=$('sec-'+x[0]);const w=document.createElement('div');w.className='sbody';[...sec.children].filter(c=>c.tagName!=='H2').forEach(c=>w.appendChild(c));sec.appendChild(w)});
+  SECS.forEach(x=>{$('sec-'+x[0]).insertAdjacentHTML('beforeend','<button type="button" class="fold" aria-expanded="true" data-id="'+x[0]+'"></button>')});
+  $('grid').addEventListener('click',e=>{if($('grid').classList.contains('arr'))return;const b=e.target.closest('.fold')||(e.target.closest('h2')&&!e.target.closest('a,button,input,select')?e.target.closest('.sec').querySelector('.fold'):null);if(!b)return;const id=b.dataset.id;if(L.collapsed[id])delete L.collapsed[id];else L.collapsed[id]=true;applyLayout();save()});
+  const all=f=>{SECS.filter(x=>x[2]===curTab).forEach(x=>{if(f)L.collapsed[x[0]]=true;else delete L.collapsed[x[0]]});applyLayout();save()};
+  $('fold-all').addEventListener('click',()=>all(true));$('unfold-all').addEventListener('click',()=>all(false));
+  SECS.forEach(x=>{$('sec-'+x[0]).insertAdjacentHTML('beforeend','<div class="dh" data-h="move" title="Ziehen zum Verschieben">☰ Verschieben</div><div class="rz rz-w" data-h="w" title="Breite ändern, Doppelklick setzt zurück"></div><div class="rz rz-h" data-h="h" title="Höhe ändern, Doppelklick setzt zurück"></div><div class="rz rz-c" data-h="c" title="Breite und Höhe ändern, Doppelklick setzt zurück"></div>')});
+  const g=$('grid');
+  $('arrange-btn').addEventListener('click',()=>{const on=!g.classList.contains('arr');g.classList.toggle('arr',on);$('arrange-btn').setAttribute('aria-pressed',String(on));$('arrange-btn').textContent=on?'Anordnen beenden':'Kacheln anordnen';$('arrange-hint').hidden=!on});
+  g.addEventListener('pointerdown',e=>{
+    if(!g.classList.contains('arr'))return;const h=e.target.closest('[data-h]');if(!h)return;
+    e.preventDefault();const sec=h.closest('.sec'),id=sec.id.slice(4),r=sec.getBoundingClientRect();
+    drag={kind:h.dataset.h,id,sec,h,x0:e.clientX,y0:e.clientY,w0:r.width,h0:r.height,top0:r.top,target:null,before:true};
+    h.setPointerCapture(e.pointerId);
+    h.addEventListener('pointermove',onDragMove);h.addEventListener('pointerup',onDragEnd);h.addEventListener('pointercancel',onDragEnd);
+    if(drag.kind==='move')sec.classList.add('dragging');
+  });
+  g.addEventListener('dblclick',e=>{if(!g.classList.contains('arr'))return;const h=e.target.closest('[data-h]');if(!h||h.dataset.h==='move')return;
+    const id=h.closest('.sec').id.slice(4);if(h.dataset.h!=='h')L.span[id]=DEF_SPAN[id];if(h.dataset.h!=='w')delete L.height[id];applyLayout();save()});
+}
+function onDragMove(e){
+  const d=drag;if(!d)return;const dx=e.clientX-d.x0,dy=e.clientY-d.y0;
+  if(d.kind==='w'||d.kind==='c'){
+    const gap=16,colW=($('grid').clientWidth+gap)/12;L.span[d.id]=Math.max(2,Math.min(12,Math.round((d.w0+dx+gap)/colW)));d.sec.style.gridColumn='span '+L.span[d.id];
+  }
+  if(d.kind==='h'||d.kind==='c'){L.height[d.id]=Math.max(80,Math.round(d.h0+dy));d.sec.style.height=L.height[d.id]+'px';d.sec.classList.add('hset')}
+  if(d.kind==='move'){
+    document.querySelectorAll('.drop-before,.drop-after').forEach(x=>x.classList.remove('drop-before','drop-after'));
+    d.target=null;
+    const x=e.clientX,y=e.clientY;let best=null,bd=Infinity;
+    document.querySelectorAll('#grid > .sec:not([hidden])').forEach(t=>{if(t===d.sec)return;const r=t.getBoundingClientRect();
+      const dx=Math.max(r.left-x,0,x-r.right),dy=Math.max(r.top-y,0,y-r.bottom),dist=Math.hypot(dx,dy);
+      if(dist<bd){bd=dist;best={t,r,dx,dy}}});
+    if(best&&bd<400){const {t,r,dx,dy}=best;
+      if(dy>0)d.before=y<r.top;                       /* über oder unter der Kachel */
+      else if(dx>0)d.before=x<r.left;                 /* links oder rechts daneben */
+      else d.before=Math.abs(r.top-d.top0)<30?x<r.left+r.width/2:y<r.top+Math.min(r.height/2,110);
+      d.target=t.id.slice(4);t.classList.add(d.before?'drop-before':'drop-after')}
+    if(e.clientY<70)window.scrollBy(0,-18);else if(e.clientY>innerHeight-70)window.scrollBy(0,18);
+  }
+}
+function onDragEnd(e){
+  const d=drag;if(!d)return;drag=null;
+  d.h.removeEventListener('pointermove',onDragMove);d.h.removeEventListener('pointerup',onDragEnd);d.h.removeEventListener('pointercancel',onDragEnd);
+  document.querySelectorAll('.drop-before,.drop-after,.dragging').forEach(x=>x.classList.remove('drop-before','drop-after','dragging'));
+  if(d.kind==='move'&&d.target){L.order=L.order.filter(x=>x!==d.id);const i=L.order.indexOf(d.target);L.order.splice(d.before?i:i+1,0,d.id)}
+  applyLayout();save();if(!$('settings').hidden)renderSettings();
+}
+
+/* ---------- Daten ---------- */
+function msg(t){const m=$('d-msg');m.textContent=t;setTimeout(()=>{if(m.textContent===t)m.textContent=''},4000)}
+function resetAll(){const v=S.view;S=EMPTY();S.view=v;renderRows();renderPlan();spFill(true);renderSp();fiFill();renderFinder();update()}
+function bindReset(){
+  const b=$('reset-btn'),c=$('reset-confirm');
+  b.addEventListener('click',()=>{b.hidden=true;c.hidden=false;$('reset-yes').focus()});
+  $('reset-no').addEventListener('click',()=>{c.hidden=true;b.hidden=false;b.focus()});
+  $('reset-yes').addEventListener('click',()=>{resetAll();c.hidden=true;b.hidden=false;b.focus()});
+}
+function bindData(){
+  $('d-copy').addEventListener('click',async()=>{const t=JSON.stringify({S,L});$('data-json').value=t;
+    try{await navigator.clipboard.writeText(t);msg('In die Zwischenablage kopiert.')}catch(e){$('data-json').select();msg('Text markiert. Mit Ctrl+C oder Cmd+C kopieren.')}});
+  $('d-load').addEventListener('click',()=>{try{const o=JSON.parse($('data-json').value);if(!o.S)throw new Error('x');adopt(o);renderRows();applyLayout();update();msg('Daten geladen.')}catch(e){msg('Der Text ist ungültig. Bitte den kopierten Text vollständig einfügen.')}});
+  $('d-sample').addEventListener('click',()=>{const v=S.view;S=SAMPLE();S.view=v;renderRows();renderPlan();spFill(true);renderSp();update();msg('Beispiel geladen.')});
+  $('d-clear').addEventListener('click',()=>{resetAll();msg('Alles auf 0 gesetzt.')});
+}
+
+
+/* ---------- ETF-Sparplan (ISIN) ---------- */
+function isinCheck(v){
+  if(!/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(v))return 'format';
+  const d=v.split('').map(c=>/[A-Z]/.test(c)?String(c.charCodeAt(0)-55):c).join('');
+  let sm=0,alt=false;
+  for(let i=d.length-1;i>=0;i--){let n=+d[i];if(alt){n*=2;if(n>9)n-=9}sm+=n;alt=!alt}
+  return sm%10===0?'ok':'check';
+}
+function isinStatus(v,auto){
+  if(!v)return 'Zwölfstellige ISIN eingeben, zum Beispiel IE000N6LBS91.';
+  if(v.length<12)return 'Noch '+(12-v.length)+' Zeichen.';
+  const r=isinCheck(v);
+  if(r==='ok')return `<span class="chip ok">✓ gültige ISIN</span>${ampelHTML(FINDER.find(f=>f.isin===v))}${auto?'<span>Bezeichnung aus der eingebauten Liste übernommen.</span>':(ISINDB[v]?'':'<span>Bezeichnung nicht in der Liste, bitte selbst eintragen.</span>')}<a href="https://www.justetf.com/de/etf-profile.html?isin=${v}" target="_blank" rel="noopener noreferrer">Auf justETF ansehen ↗</a>`;
+  if(r==='check')return '<span class="chip no">! Prüfziffer falsch</span>Bitte die ISIN kontrollieren.';
+  return '<span class="chip no">! Format</span>Eine ISIN besteht aus 2 Buchstaben, 9 Buchstaben oder Ziffern und 1 Ziffer.';
+}
+const planTotal=()=>sum(S.plan.filter(p=>p.on!==false).map(p=>+p.amount||0));
+function prowHTML(p){const q='plan-'+p.id;
+  return `<div class="prow${p.on===false?' off':''}" data-id="${p.id}">
+   <input id="${q}-on" class="on" data-f="on" type="checkbox"${p.on===false?'':' checked'} aria-label="ETF im Sparplan berücksichtigen">
+   <input id="${q}-isin" class="isin" list="dl-isin" data-f="isin" type="text" maxlength="12" value="${esc(p.isin)}" placeholder="ISIN" aria-label="ISIN" autocapitalize="characters" autocomplete="off" spellcheck="false">
+   <input id="${q}-name" data-f="name" type="text" value="${esc(p.name)}" placeholder="Bezeichnung (optional)" aria-label="Bezeichnung des ETF">
+   <input id="${q}-amt" class="am" data-f="amount" type="number" min="0" step="any" inputmode="decimal" value="${p.amount||''}" placeholder="CHF pro Monat" aria-label="Sparrate in CHF pro Monat">
+   <button type="button" class="del" data-act="del" aria-label="ETF entfernen">×</button>
+   <div class="pst">${p.src==='finder'&&!p.touched?'<span class="chip ok" style="background:var(--accent);color:var(--on-accent,#fff)">aus ETF-Finder</span>':''}${isinStatus(p.isin,p.autoName)}</div></div>`;
+}
+function renderPlan(focusLast){
+  $('plan-list').innerHTML=S.plan.length?S.plan.map(prowHTML).join(''):'<p class="empty">Noch kein ETF erfasst. Füge eine ISIN hinzu oder wähle ein Beispiel.</p>';
+  if(focusLast){const r=$('plan-list').querySelectorAll('.prow');if(r.length)r[r.length-1].querySelector('.isin').focus()}
+}
+function renderPlanSum(c){
+  const tot=planTotal(),n=S.plan.filter(p=>p.on!==false&&(+p.amount||0)>0).length,bad=S.plan.filter(p=>p.on!==false&&p.isin&&isinCheck(p.isin)!=='ok').length;
+  let t=tot>0?`Erfasst: <b>CHF ${fmt(tot)} pro Monat</b> (CHF ${fmt(tot*12)} pro Jahr) auf ${n} ETF${n===1?'':'s'}.`:'Noch keine Sparrate erfasst.';
+  const bud=etfAmount(c);
+  if(bud>0&&tot>0){const d=bud-tot;t+=` Budget für den ETF-Sparplan laut Aufteilung: CHF ${fmt(bud)}. ${Math.abs(d)<1?'Das passt genau.':d>0?'Noch frei: CHF '+fmt(d)+'.':'Das übersteigt das Budget um CHF '+fmt(-d)+'.'}`}
+  if(bad)t+=` <span style="color:var(--bad);font-weight:600">${bad} ISIN ${bad===1?'ist':'sind'} nicht gültig.</span>`;
+  $('plan-sum').innerHTML=t;
+}
+function bindPlan(){
+  const el=$('plan-list');
+  $('plan-quick').innerHTML=ETFS.map((e,i)=>`<button type="button" class="mini" data-i="${i}">${esc(e.short)}</button>`).join('');
+  $('plan-quick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const x=ETFS[+b.dataset.i];S.plan.push({id:nid(),isin:x.isin,name:x.name,amount:0,autoName:true});renderPlan();update();const r=el.querySelectorAll('.prow');r[r.length-1].querySelector('.am').focus()});
+  $('plan-add').addEventListener('click',()=>{S.plan.push({id:nid(),isin:'',name:'',amount:0});renderPlan(true);update()});
+  el.addEventListener('input',e=>{const row=e.target.closest('.prow');if(!row)return;const it=S.plan.find(x=>x.id===row.dataset.id);const f=e.target.dataset.f;if(!it||!f)return;
+    if(f==='on'){it.on=e.target.checked;row.classList.toggle('off',!it.on);update();return}
+    if(f!=='isin'||true)it.touched=true;
+    if(f==='isin'){const v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');if(v!==e.target.value)e.target.value=v;it.isin=v;
+      const nm=ISINDB[v]&&isinCheck(v)==='ok'?ISINDB[v]:'';
+      if(nm&&(!it.name||it.autoName)){it.name=nm;it.autoName=true;row.querySelector('[data-f="name"]').value=nm}
+      else if(!nm&&it.autoName){it.name='';it.autoName=false;row.querySelector('[data-f="name"]').value=''}
+      row.querySelector('.pst').innerHTML=isinStatus(v,it.autoName)}
+    else if(f==='amount')it.amount=Math.max(0,parseFloat(e.target.value)||0);
+    else{it.name=e.target.value;it.autoName=false}
+    renderFinder();update();});
+  el.addEventListener('click',e=>{const b=e.target.closest('[data-act="del"]');if(!b)return;const i=S.plan.findIndex(x=>x.id===b.closest('.prow').dataset.id);if(i>=0){const r=S.plan[i];if(r.src==='finder')S.fiSel=S.fiSel.filter(x=>x!==r.isin);S.plan.splice(i,1);renderPlan();renderFinder();update()}});
+  $('plan-calc').addEventListener('click',()=>{const t=planTotal();if(t>0){S.sp.rate=Math.round(t*100)/100;S.sp.intv='M'}S.sp.ret=S.ret;S.sp.years=S.years;S.sp.mode='end';spFill(true);renderSp();setTab('s',true)});
+}
+
+/* ---------- Sparplanrechner ---------- */
+const IV={M:12,Q:4,H:2,J:1};
+const IVN={M:'monatlich',Q:'vierteljährlich',H:'halbjährlich',J:'jährlich'};
+function simulate(p,n,rows){
+  const m=IV[p.comp],k=12/m,r=p.ret/100;
+  const ic=p.retType==='geo'?Math.pow(1+r,1/m)-1:r/m;
+  const step=12/IV[p.intv],dstep=p.dyn?(p.dynFreq==='H'?6:12):0;
+  let bal=p.start,acc=0,dep=p.start,pay=p.rate;const out=[];
+  for(let t=1;t<=n;t++){
+    if(dstep&&t>1&&(t-1)%dstep===0)pay*=1+p.dynPct/100;
+    if(p.timing==='pre'&&(t-1)%step===0){bal+=pay;dep+=pay}
+    acc+=bal*ic/k;
+    if(t%k===0){bal+=acc;acc=0}
+    if(p.timing==='post'&&t%step===0){bal+=pay;dep+=pay}
+    if(rows&&(t%12===0||t===n))out.push({y:t/12,dep,int:bal+acc-dep});
+  }
+  bal+=acc;
+  const gain=bal-dep,tax=p.tax>0?Math.max(0,gain-p.allow)*p.tax/100:0;
+  return {gross:bal,dep,gain,tax,net:bal-tax,rows:out};
+}
+function solveUp(f,target,lo,hi,cap){
+  if(f(lo)>=target)return lo;
+  let i=0;while(f(hi)<target&&hi<cap&&i<80){hi=Math.min(hi*2,cap);i++}
+  if(f(hi)<target)return null;
+  for(let k=0;k<70;k++){const mid=(lo+hi)/2;if(f(mid)>=target)hi=mid;else lo=mid}
+  return hi;
+}
+function cleanSp(){
+  const p=S.sp,num=(v,mn,mx)=>Math.min(mx,Math.max(mn,+v||0));
+  return {...p,start:num(p.start,0,1e10),rate:num(p.rate,0,1e9),ret:num(p.ret,0,100),end:num(p.end,0,1e12),years:num(p.years,0,100),dynPct:num(p.dynPct,0,100),allow:num(p.allow,0,1e12),tax:num(p.tax,0,100),mcVol:num(p.mcVol,0,100),mcN:Math.round(num(p.mcN||1000,100,20000)),mcTarget:num(p.mcTarget,0,1e12)};
+}
+function solveSp(p){
+  const q={...p};let n=Math.max(1,Math.round(q.years*12)),fail=null,note='';
+  const net=(qq,nn)=>simulate(qq,nn).net;
+  if(p.mode==='start'){const r=solveUp(v=>net({...q,start:v},n),q.end,0,1000,1e12);if(r===null)fail='Das Endkapital ist mit diesen Angaben nicht erreichbar.';else{q.start=r;if(r===0)note='Das Ziel wird bereits ohne Startkapital erreicht.'}}
+  else if(p.mode==='rate'){const r=solveUp(v=>net({...q,rate:v},n),q.end,0,100,1e9);if(r===null)fail='Das Endkapital ist mit diesen Angaben nicht erreichbar.';else{q.rate=r;if(r===0)note='Das Ziel wird bereits ohne Sparrate erreicht.'}}
+  else if(p.mode==='ret'){const r=solveUp(v=>net({...q,ret:v},n),q.end,0,5,100);if(r===null)fail='Das Endkapital ist auch mit 100 % Zinssatz nicht erreichbar. Erhöhe Sparrate oder Ansparzeit.';else q.ret=r}
+  else if(p.mode==='years'){let found=0;for(let t=1;t<=1200;t++){if(net(q,t)>=q.end){found=t;break}}
+    if(!found){fail='Das Endkapital wird innerhalb von 100 Jahren nicht erreicht. Erhöhe Sparrate oder Zinssatz.';}else{n=found;q.years=n/12}}
+  return {q,n,fail,note,res:simulate(q,n,true)};
+}
+const SPMAP={'sp-mode':['mode','s'],'sp-start':['start','n'],'sp-rate':['rate','n'],'sp-intv':['intv','s'],'sp-ret':['ret','n'],'sp-end':['end','n'],'sp-years':['years','n'],'sp-timing':['timing','s'],'sp-comp':['comp','s'],'sp-rtype':['retType','s'],'sp-dyn':['dyn','b'],'sp-dynpct':['dynPct','n'],'sp-dynfreq':['dynFreq','s'],'sp-allow':['allow','n'],'sp-tax':['tax','n'],'sp-vol':['mcVol','n'],'sp-n':['mcN','n'],'sp-target':['mcTarget','n']};
+const SPTARGET={end:'sp-end',start:'sp-start',rate:'sp-rate',ret:'sp-ret',years:'sp-years'};
+function spFill(force){
+  Object.keys(SPMAP).forEach(id=>{const el=$(id),k=SPMAP[id][0];if(!force&&document.activeElement===el)return;
+    if(SPMAP[id][1]==='b')el.checked=!!S.sp[k];else el.value=id==='sp-target'&&!S.sp[k]?'':(S.sp[k]===0&&SPMAP[id][1]==='n'?'0':S.sp[k])})
+}
+function round2(v){return Math.round(v*100)/100}
+let lastSp=null;
+function renderSp(){
+  const p=cleanSp(),sol=solveSp(p),q=sol.q,res=sol.res;lastSp=sol;
+  const tg=SPTARGET[p.mode];
+  Object.values(SPTARGET).forEach(id=>{const el=$(id);el.readOnly=id===tg;if(id===tg&&!sol.fail)el.value=p.mode==='end'?round2(res.net):round2(q[p.mode])});
+  if(sol.fail&&tg)$(tg).value='';
+  ['sp-dynpct','sp-dynfreq'].forEach(id=>$(id).disabled=!p.dyn);
+  const y=Math.floor(sol.n/12),mo=sol.n%12;
+  const dur=(y?y+' Jahr'+(y===1?'':'e'):'')+(y&&mo?' ':'')+(mo?mo+' Monat'+(mo===1?'':'e'):'');
+  const intL=IVN[q.intv];
+  let head;
+  if(sol.fail){$('sp-result').innerHTML=`<div class="msgbad">${sol.fail}</div>`;$('sp-chart').innerHTML='';$('sp-table').innerHTML='';$('mc-kpi').innerHTML='';$('mc-fan').innerHTML='';$('mc-hist').innerHTML='';return}
+  const big={end:['Endkapital','CHF '+fmt(res.net)],start:['Benötigtes Startkapital','CHF '+fmt(q.start)],rate:['Benötigte Sparrate ('+intL+')','CHF '+fmt(q.rate)],ret:['Benötigter Zinssatz p.a.',q.ret.toFixed(2).replace('.',',')+' %'],years:['Benötigte Ansparzeit',dur||'0 Monate']}[p.mode];
+  head=`<div class="res-sub" style="margin:0">${big[0]}</div><div class="res-big">${big[1]}</div><div class="res-sub">${p.mode==='years'?'':'Dauer: '+dur+'. '}Sparrate CHF ${fmt(q.rate)} ${intL}${q.dyn?', Erhöhung um '+String(q.dynPct).replace('.',',')+' % '+(q.dynFreq==='H'?'halbjährlich':'jährlich'):''}.</div>`;
+  const share=res.gross>0?res.gain/res.gross*100:0;
+  const kv=[['Startkapital','CHF '+fmt(q.start)],['Einzahlungen gesamt (inkl. Startkapital)','CHF '+fmt(res.dep)],['Erträge','CHF '+fmt(res.gain)],['Anteil Erträge am Kapital',Math.round(share)+' %']];
+  if(q.tax>0)kv.push(['Steuer auf Erträge','− CHF '+fmt(res.tax)]);
+  kv.push(['Endkapital'+(q.tax>0?' nach Steuer':''),'CHF '+fmt(res.net)]);
+  let scen='';
+  if(p.mode==='end'||p.mode==='start'||p.mode==='rate'){
+    const lo=Math.max(0,q.ret-2),hi=q.ret+2;const f=r=>simulate({...q,ret:r},sol.n).net;
+    scen=`<div class="scen"><div>Vorsichtig (${lo.toFixed(1).replace('.',',')} %)<b>CHF ${fmt(f(lo))}</b></div><div>Annahme (${q.ret.toFixed(1).replace('.',',')} %)<b>CHF ${fmt(f(q.ret))}</b></div><div>Optimistisch (${hi.toFixed(1).replace('.',',')} %)<b>CHF ${fmt(f(hi))}</b></div></div><p class="note">Endkapital bei 2 Prozentpunkten weniger oder mehr Rendite.</p>`;
+  }
+  if(sol.note)head+=`<p class="note" style="margin:0 0 8px">${sol.note}</p>`;
+  $('sp-result').innerHTML=head+`<dl class="kv">${kv.map(x=>`<dt>${x[0]}</dt><dd>${x[1]}</dd>`).join('')}</dl>`+scen;
+  renderSpChart(res.rows,q);
+  scheduleMC();
+}
+function renderSpChart(rows,q){
+  const Y=rows.length;if(!Y){$('sp-chart').innerHTML='';return}
+  $('sp-unit').textContent='CHF, jährlich'+(q.tax>0?', vor Steuer':'');
+  const W=900,H=280,ml=52,mr=16,mt=26,mb=28,pw=W-ml-mr,ph=H-mt-mb;
+  const maxV=niceMax(Math.max(...rows.map(r=>r.dep+r.int),1000)),yv=v=>mt+ph-v/maxV*ph,bw=pw/Y,iw=Math.max(2,bw*.72);
+  let g='';
+  for(let i=0;i<=4;i++){const a=maxV*i/4;g+=`<line class="grid-l" x1="${ml}" x2="${W-mr}" y1="${yv(a)}" y2="${yv(a)}"/><text x="${ml-6}" y="${yv(a)+4}" text-anchor="end">${fmtS(a)}</text>`}
+  const st=Y<=15?1:Y<=30?5:Y<=60?10:20;let bars='';
+  rows.forEach((r,i)=>{
+    const x=ml+i*bw+(bw-iw)/2,tot=r.dep+r.int,hd=yv(0)-yv(r.dep),hi=Math.max(0,yv(r.dep)-yv(tot)-(r.int>0&&r.dep>0?2:0));
+    bars+=`<rect x="${x.toFixed(1)}" y="${yv(r.dep).toFixed(1)}" width="${iw.toFixed(1)}" height="${Math.max(0,hd).toFixed(1)}" fill="var(--s1)"/>`;
+    if(r.int>0)bars+=`<rect x="${x.toFixed(1)}" y="${yv(tot).toFixed(1)}" width="${iw.toFixed(1)}" height="${hi.toFixed(1)}" fill="var(--s3)"/>`;
+    bars+=`<rect x="${(ml+i*bw).toFixed(1)}" y="${mt}" width="${bw.toFixed(1)}" height="${ph}" fill="transparent" data-tip="${Number.isInteger(r.y)?'Jahr '+r.y:'Nach '+r.y.toFixed(1).replace('.',',')+' Jahren'}: Kapital CHF ${fmt(tot)} (eingezahlt CHF ${fmt(r.dep)}, Erträge CHF ${fmt(r.int)})"/>`;
+    if(Number.isInteger(r.y)&&r.y%st===0)bars+=`<text x="${(ml+i*bw+bw/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${r.y}</text>`;
+  });
+  const last=rows[Y-1],lx=ml+(Y-1)*bw+bw/2;
+  const lbl=`<text class="lbl" x="${Math.min(lx,W-mr-30).toFixed(1)}" y="${(yv(last.dep+last.int)-6).toFixed(1)}" text-anchor="${lx>W-mr-30?'end':'middle'}">${fmtS(last.dep+last.int)}</text>`;
+  $('sp-chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Kapitalentwicklung, aufgeteilt in Einzahlungen und Erträge">${g}${bars}${lbl}</svg>
+   <ul class="legend inline" style="margin-top:8px"><li><i style="background:var(--s1)"></i><span>Einzahlungen</span></li><li><i style="background:var(--s3)"></i><span>Erträge</span></li></ul>`;
+  $('sp-table').innerHTML=`<table class="yt"><thead><tr><th>Jahr</th><th>Einzahlungen</th><th>Erträge</th><th>Kapital</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${Number.isInteger(r.y)?r.y:r.y.toFixed(2).replace('.',',')}</td><td>${fmt(r.dep)}</td><td>${fmt(r.int)}</td><td>${fmt(r.dep+r.int)}</td></tr>`).join('')}</tbody></table>`;
+}
+function bindSp(){
+  Object.keys(SPMAP).forEach(id=>{const el=$(id),[k,t]=SPMAP[id];const h=()=>{if(el.readOnly)return;if(id==='sp-mode'&&lastSp&&!lastSp.fail){const o=S.sp.mode;S.sp[o]=o==='end'?round2(lastSp.res.net):round2(lastSp.q[o])}S.sp[k]=t==='b'?el.checked:t==='n'?(parseFloat(el.value)||0):el.value;if(id==='sp-mode')spFill(true);renderSp();save()};el.addEventListener('input',h);el.addEventListener('change',h)});
+  $('sp-share').addEventListener('click',async()=>{if(!lastSp||lastSp.fail){return}const q=lastSp.q,r=lastSp.res;
+    const t=`Sparplan: Startkapital CHF ${fmt(q.start)}, Sparrate CHF ${fmt(q.rate)} ${IVN[q.intv]}, Zinssatz ${q.ret.toFixed(2).replace('.',',')} % p.a., Dauer ${round2(q.years)} Jahre. Einzahlungen CHF ${fmt(r.dep)}, Erträge CHF ${fmt(r.gain)}, Endkapital CHF ${fmt(r.net)}.`;
+    const m=$('sp-msg');try{await navigator.clipboard.writeText(t);m.textContent='Ergebnis kopiert.'}catch(e){m.textContent='Kopieren nicht möglich. Bitte den Text von Hand markieren.'}setTimeout(()=>m.textContent='',3500)});
+  $('sp-fromplan').addEventListener('click',()=>{const t=planTotal();const m=$('sp-msg');if(t>0){S.sp.rate=Math.round(t*100)/100;S.sp.intv='M';spFill(true);renderSp();save();m.textContent='Sparrate übernommen: CHF '+fmt(t)+' pro Monat.'}else m.textContent='Im Budget ist noch kein ETF-Sparplan erfasst.';setTimeout(()=>m.textContent='',3500)});
+}
+
+/* ---------- Tabs ---------- */
+function setTab(t,pushHash){
+  curTab=t;['b','s','f'].forEach(k=>$('tab-'+k).setAttribute('aria-selected',String(t===k)));
+  applyLayout();
+  if($('settings').hidden===false)renderSettings();
+  if(t==='s')scheduleMC();
+  if(pushHash){try{const h={s:'sparplan',f:'etf-finder',b:'budget'}[t];if(location.hash!=='#'+h)location.hash=h}catch(e){}}
+}
+function bindTabs(){
+  ['b','s','f'].forEach(k=>$('tab-'+k).addEventListener('click',()=>setTab(k,true)));
+  const fromHash=()=>{const h=(location.hash||'').replace('#','');if(h==='sparplan')setTab('s');else if(h==='budget')setTab('b');else if(h==='etf-finder')setTab('f')};
+  window.addEventListener('hashchange',fromHash);fromHash();
+}
+
+
+/* ---------- Monte-Carlo ---------- */
+let mcSeed=20261101,mcTimer=null,mcKey='';
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function pctl(sorted,p){const i=p*(sorted.length-1),lo=Math.floor(i),hi=Math.ceil(i);return sorted[lo]+(sorted[hi]-sorted[lo])*(i-lo)}
+function runMC(q,n,vol,N){
+  const rnd=mulberry(mcSeed);
+  const sig=vol/100/Math.sqrt(12),mu=Math.log(1+q.ret/100)/12-sig*sig/2;
+  const step=12/IV[q.intv],dstep=q.dyn?(q.dynFreq==='H'?6:12):0;
+  const bal=new Float64Array(N).fill(q.start);
+  let pay=q.rate,dep=q.start,spare=null;
+  const gauss=()=>{if(spare!==null){const v=spare;spare=null;return v}let u=0,v=0;while(u===0)u=rnd();v=rnd();const m=Math.sqrt(-2*Math.log(u));spare=m*Math.sin(2*Math.PI*v);return m*Math.cos(2*Math.PI*v)};
+  const snaps=[{y:0,dep,vals:Float64Array.from(bal)}];
+  const flat=Math.exp(mu);
+  for(let t=1;t<=n;t++){
+    if(dstep&&t>1&&(t-1)%dstep===0)pay*=1+q.dynPct/100;
+    if(q.timing==='pre'&&(t-1)%step===0){for(let i=0;i<N;i++)bal[i]+=pay;dep+=pay}
+    if(sig===0){for(let i=0;i<N;i++)bal[i]*=flat}else{for(let i=0;i<N;i++)bal[i]*=Math.exp(mu+sig*gauss())}
+    if(q.timing==='post'&&t%step===0){for(let i=0;i<N;i++)bal[i]+=pay;dep+=pay}
+    if(t%12===0||t===n)snaps.push({y:t/12,dep,vals:Float64Array.from(bal)});
+  }
+  const bands=snaps.map(sn=>{const v=Float64Array.from(sn.vals).sort();return {y:sn.y,dep:sn.dep,p5:pctl(v,.05),p25:pctl(v,.25),p50:pctl(v,.5),p75:pctl(v,.75),p95:pctl(v,.95)}});
+  const fin=Float64Array.from(snaps[snaps.length-1].vals).sort();
+  return {bands,fin,dep,N};
+}
+function scheduleMC(){
+  clearTimeout(mcTimer);
+  if(curTab!=='s')return;
+  mcTimer=setTimeout(renderMC,300);
+}
+function renderMC(){
+  if(!lastSp||lastSp.fail)return;
+  const p=cleanSp(),q=lastSp.q,n=lastSp.n;
+  const m=runMC(q,n,p.mcVol,p.mcN),det=lastSp.res.gross,F=m.fin,N=m.N;
+  $('mc-unit').textContent=N.toLocaleString('de-CH')+' Simulationen, vor Steuern';
+  const target=p.mcTarget>0?p.mcTarget:det,tLabel=p.mcTarget>0?'das Zielkapital von CHF '+fmt(target):'den berechneten Endwert von CHF '+fmt(det);
+  const below=F.reduce((a,v)=>a+(v<m.dep?1:0),0)/N,reach=F.reduce((a,v)=>a+(v>=target?1:0),0)/N;
+  const b=m.bands[m.bands.length-1];
+  $('mc-kpi').innerHTML=`<div class="scen c4"><div>Pessimistisch (5 %-Quantil)<b>CHF ${fmt(b.p5)}</b></div><div>Median<b>CHF ${fmt(b.p50)}</b></div><div>Optimistisch (95 %-Quantil)<b>CHF ${fmt(b.p95)}</b></div><div>Ohne Schwankung<b>CHF ${fmt(det)}</b></div></div>
+   <ul class="ul-tight" style="margin:12px 0 14px"><li>Wahrscheinlichkeit, <b>${Math.round(reach*100)} %</b>, ${tLabel} zu erreichen.</li><li>Verlustrisiko: In <b>${(below*100).toFixed(1).replace('.',',')} %</b> der Verläufe liegt das Endkapital unter den Einzahlungen (CHF ${fmt(m.dep)}).</li><li>Die mittleren 50 % der Verläufe enden zwischen CHF ${fmt(b.p25)} und CHF ${fmt(b.p75)}.</li></ul>`;
+  /* Fächerdiagramm */
+  const W=900,H=300,ml=52,mr=104,mt=16,mb=28,pw=W-ml-mr,ph=H-mt-mb,Yt=m.bands[m.bands.length-1].y||1;
+  const maxV=niceMax(Math.max(...m.bands.map(x=>x.p95),m.dep,1000)),X=y=>ml+y/Yt*pw,Yp=v=>mt+ph-v/maxV*ph;
+  let g='';for(let i=0;i<=4;i++){const a=maxV*i/4;g+=`<line class="grid-l" x1="${ml}" x2="${W-mr}" y1="${Yp(a)}" y2="${Yp(a)}"/><text x="${ml-6}" y="${Yp(a)+4}" text-anchor="end">${fmtS(a)}</text>`}
+  const st=Yt<=15?1:Yt<=30?5:Yt<=60?10:20;for(let y=0;y<=Yt;y+=st)g+=`<text x="${X(y)}" y="${H-8}" text-anchor="middle">${y}</text>`;
+  const B=m.bands,pt=k=>B.map(x=>`${X(x.y).toFixed(1)} ${Yp(x[k]).toFixed(1)}`);
+  const area=(hi,lo)=>`M${pt(hi).join(' L')} L${pt(lo).reverse().join(' L')} Z`;
+  const line=k=>`M${pt(k).join(' L')}`;
+  const bw=pw/Math.max(1,B.length-1);
+  const hov=B.map(x=>`<rect x="${(X(x.y)-bw/2).toFixed(1)}" y="${mt}" width="${bw.toFixed(1)}" height="${ph}" fill="transparent" data-tip="${Number.isInteger(x.y)?'Jahr '+x.y:'Nach '+x.y.toFixed(1).replace('.',',')+' Jahren'}: Median CHF ${fmt(x.p50)}, 25 bis 75 %: ${fmt(x.p25)} bis ${fmt(x.p75)}, 5 bis 95 %: ${fmt(x.p5)} bis ${fmt(x.p95)}, eingezahlt ${fmt(x.dep)}"/>`).join('');
+  let labs=[{t:'95 %',v:b.p95},{t:'Median',v:b.p50},{t:'5 %',v:b.p5},{t:'Eingezahlt',v:m.dep,c:1}].map(l=>({...l,y:Yp(l.v)})).sort((a,c)=>a.y-c.y);
+  for(let i=1;i<labs.length;i++)if(labs[i].y-labs[i-1].y<13)labs[i].y=labs[i-1].y+13;
+  const lt=labs.map(l=>`<text class="lbl" x="${W-mr+8}" y="${(l.y+4).toFixed(1)}">${l.t} ${fmtS(l.v)}</text>`).join('');
+  $('mc-fan').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Fächerdiagramm der simulierten Kapitalverläufe">${g}
+   <path d="${area('p95','p5')}" fill="var(--s1)" opacity=".16"/><path d="${area('p75','p25')}" fill="var(--s1)" opacity=".3"/>
+   <path d="${line('dep')}" fill="none" stroke="var(--s2)" stroke-width="2"/><path d="${line('p50')}" fill="none" stroke="var(--s1)" stroke-width="2.5" stroke-linejoin="round"/>${lt}${hov}</svg>
+   <ul class="legend inline" style="margin-top:8px"><li><i style="background:var(--s1)"></i><span>Median</span></li><li><i style="background:var(--s1);opacity:.3"></i><span>mittlere 50 %</span></li><li><i style="background:var(--s1);opacity:.16"></i><span>5 bis 95 %</span></li><li><i style="background:var(--s2)"></i><span>Einzahlungen</span></li></ul>`;
+  /* Histogramm */
+  const lo=pctl(F,.01);let hi=pctl(F,.99);if(hi<=lo)hi=lo+1;const K=30,cnt=new Array(K).fill(0);
+  for(let i=0;i<N;i++){const v=Math.min(Math.max(F[i],lo),hi-1e-9);cnt[Math.floor((v-lo)/(hi-lo)*K)]++}
+  const hm=Math.max(...cnt),W2=900,H2=190,l2=52,r2=16,t2=22,b2=26,pw2=W2-l2-r2,ph2=H2-t2-b2,bw2=pw2/K,X2=v=>l2+(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo)*pw2;
+  let bars='';cnt.forEach((c,i)=>{const h=c/hm*ph2,a=lo+(hi-lo)*i/K,e=lo+(hi-lo)*(i+1)/K;
+    bars+=`<rect x="${(l2+i*bw2+1).toFixed(1)}" y="${(t2+ph2-h).toFixed(1)}" width="${(bw2-2).toFixed(1)}" height="${h.toFixed(1)}" fill="var(--s1)" data-tip="CHF ${fmt(a)} bis ${fmt(e)}: ${(c/N*100).toFixed(1).replace('.',',')} % der Verläufe"/>`});
+  let ticks='';for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;ticks+=`<text x="${(l2+pw2*i/4).toFixed(1)}" y="${H2-8}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${fmtS(v)}</text>`}
+  const mk=(v,c,t,dy)=>`<line x1="${X2(v).toFixed(1)}" x2="${X2(v).toFixed(1)}" y1="${t2-4}" y2="${t2+ph2}" stroke="${c}" stroke-width="2"/><text class="lbl" x="${X2(v).toFixed(1)}" y="${t2-8+dy}" text-anchor="${X2(v)>W2-110?'end':'start'}">${t}</text>`;
+  const mdl=pctl(F,.5);
+  $('mc-hist').innerHTML=`<svg viewBox="0 0 ${W2} ${H2}" role="img" aria-label="Verteilung des Endkapitals"><line class="grid-l" x1="${l2}" x2="${W2-r2}" y1="${t2+ph2}" y2="${t2+ph2}"/>${bars}${m.dep>=lo?mk(m.dep,'var(--s2)','Einzahlungen',0):''}${mk(mdl,'var(--ink)','Median',Math.abs(X2(mdl)-X2(m.dep))<90&&m.dep>=lo?-12:0)}${ticks}</svg>`;
+}
+function bindMC(){
+  $('mc-rerun').addEventListener('click',()=>{mcSeed=(mcSeed*1664525+1013904223)>>>0;renderMC()});
+}
+
+/* ---------- Lebenssituation ---------- */
+const LIFE={
+ student:{desc:'Studium mit Nebenjob, WG-Zimmer und Unterstützung durch die Eltern. Pro Monat umgerechnet rund CHF 2’200 Einnahmen.',
+  inc:[['Nebenjob',1200,'M'],['Unterstützung Eltern',600,'M'],['Stipendium',400,'M']],
+  exp:[['Miete WG-Zimmer','wohnen',750,'M'],['Krankenkasse','vers',320,'M'],['Lebensmittel','essen',400,'M'],['ÖV / Semesterabo','mobil',400,'J'],['Studiengebühren & Material','sonst',1000,'J'],['Telefon & Internet','sonst',40,'M'],['Freizeit & Ausgang','frei',250,'M'],['Ferien','frei',1000,'J'],['Sparen','spar',100,'M']]},
+ einsteiger:{desc:'Erste Vollzeitstelle mit eigener Wohnung, Aufbau von Reserve und Säule 3a. Netto rund CHF 5’600 pro Monat inklusive 13. Monatslohn.',
+  inc:[['Nettolohn',5200,'M'],['13. Monatslohn',5200,'J']],
+  exp:[['Miete','wohnen',1600,'M'],['Nebenkosten','wohnen',150,'M'],['Krankenkasse','vers',380,'M'],['Hausrat / Haftpflicht','vers',250,'J'],['Steuern','steuer',6000,'J'],['ÖV / Generalabo','mobil',3800,'J'],['Lebensmittel','essen',600,'M'],['Telefon & Internet','sonst',100,'M'],['Freizeit & Ausgang','frei',400,'M'],['Ferien','frei',3000,'J'],['Säule 3a','spar',3600,'J']]},
+ experienced:{desc:'Etablierte Karriere mit höherem Lohn, Bonus, Auto und höheren Steuern. Fokus auf Vorsorge und Vermögensaufbau. Netto rund CHF 10’000 pro Monat.',
+  inc:[['Nettolohn',8500,'M'],['13. Monatslohn',8500,'J'],['Bonus',10000,'J'],['Dividenden / Zinsen',1500,'J']],
+  exp:[['Miete / Hypothekarzins','wohnen',2600,'M'],['Nebenkosten','wohnen',350,'M'],['Krankenkasse','vers',650,'M'],['Hausrat / Haftpflicht','vers',600,'J'],['Steuern','steuer',24000,'J'],['Auto','mobil',600,'M'],['Lebensmittel','essen',1100,'M'],['Telefon & Internet','sonst',150,'M'],['Freizeit & Ausgang','frei',700,'M'],['Ferien','frei',8000,'J'],['Säule 3a','spar',7258,'J']]}
+};
+function renderLife(){
+  const sel=$('life');if(document.activeElement!==sel)sel.value=S.life||'';
+  const t=LIFE[S.life];
+  $('life-desc').textContent=t?t.desc+' Die Beträge sind grobe Richtwerte. Bitte passe sie an deine Situation an.':'Wähle eine Lebenssituation, um Einnahmen und Ausgaben mit typischen Richtwerten vorzubefüllen. Danach passt du alles an deine Zahlen an.';
+}
+function lifeApply(){
+  const t=LIFE[S.life];if(!t)return;
+  S.income=t.inc.map(x=>({id:nid(),name:x[0],amount:x[1],freq:x[2]}));
+  S.expense=t.exp.map(x=>({id:nid(),name:x[0],cat:x[1],amount:x[2],freq:x[3]}));
+  S.autoAlloc=true;renderRows();update();
+}
+function bindLife(){
+  const c=$('life-confirm');
+  const ask=()=>{if(!S.life)return;if(S.income.length||S.expense.length){c.hidden=false;$('life-yes').focus()}else lifeApply()};
+  $('life').addEventListener('change',e=>{S.life=e.target.value;c.hidden=true;renderLife();renderFinder();renderPlan();save();ask()});
+  $('life-load').addEventListener('click',()=>{if(!S.life){$('life').focus();return}ask()});
+  $('life-yes').addEventListener('click',()=>{c.hidden=true;lifeApply()});
+  $('life-no').addEventListener('click',()=>{c.hidden=true});
+}
+
+
+
+/* ---------- Ampelbeurteilung nach Lebenssituation ---------- */
+const AMP={
+ student:{name:'Studierende',w:{k:4,e:3,g:2,r:2,d:1},
+  txt:{k:'Extrem hoch (Fokus auf Gratis-Sparpläne)',e:'Thesaurierend (Zinseszins ohne Aufwand)',g:'Medium (Standard-ETFs reichen)',r:'Physisch bevorzugt (einfach zu verstehen)',d:'Geringe Relevanz (da meist unter Freibeträgen)'},
+  story:'Sehr geringes Budget (Sparraten von 25 bis 100 CHF/EUR), maximaler Anlagehorizont. Depot- und Sparplankosten stehen über allem. Empfohlen: ein einziger, grosser thesaurierender All-World-ETF bei einem Broker mit kostenlosem Sparplan.'},
+ einsteiger:{name:'Berufseinsteiger',w:{k:3,e:2,g:3,r:2,d:2},
+  txt:{k:'Hoch (Optimierung der Gesamtkosten)',e:'Thesaurierend (Kern) / Ausschüttend (Motivation)',g:'Hoch (Fokus auf langfristige Kerninvestments)',r:'Physisch (Core) / Synthetisch (für Nischen)',d:'Medium (Nutzung von Steuerfreibeträgen)'},
+  story:'Erstes stabiles Einkommen, Sparraten von 200 bis 1’000+ CHF/EUR, Horizont 30+ Jahre. Tracking Difference, Steuern und Core-Satellit-Tauglichkeit zählen. Empfohlen: solides Core-Portfolio mit physischer Replikation und Domizil Irland.'},
+ experienced:{name:'Experienced',w:{k:2,e:1,g:4,r:3,d:4},
+  txt:{k:'Medium (TER zweitrangig hinter Steuereffizienz)',e:'Ausschüttend (Zusatzeinkommen) oder Thesaurierend',g:'Extrem hoch (Sicherheit vor Fondsschliessungen)',r:'Physisch (Vollreplikation bei grossen Summen)',d:'Extrem hoch (Quellensteueroptimierung, Domizil Irland)'},
+  story:'Grosses Portfolio (>100k). Fondsgrösse, Liquidität, Quellensteuer-Optimierung und Diversifikation zählen. Empfohlen: strikte Auswahl mit AUM > 500 Mio. und Domizil Irland.'}
+};
+const CRIT={k:['K','Kosten (TER & TD)','Die Total Expense Ratio zeigt die fixen Verwaltungskosten. Noch wichtiger ist die Tracking Difference, die wahren Nettokosten inklusive Wertpapierleihe-Erträgen.'],
+ e:['E','Ertragsverwendung','Ausschüttend zahlt Dividenden bar aus. Thesaurierend reinvestiert sie automatisch, maximiert den Zinseszinseffekt und spart Transaktionskosten.'],
+ g:['G','Fondsgrösse (AUM)','Sollte über 100 Mio. EUR/CHF liegen, um das Risiko einer Fondsschliessung oder -verschmelzung zu minimieren.'],
+ r:['R','Replikationsmethode','Physisch hält die echten Aktien und minimiert das Kontrahentenrisiko. Synthetisch (Swap) birgt ein minimales Ausfallrisiko des Tauschpartners.'],
+ d:['D','Fondsdomizil & Steuern','Wichtig für die Quellensteuer. Irland ist wegen der Doppelbesteuerungsabkommen bei US-Aktien oft am attraktivsten, gefolgt von Luxemburg.']};
+/* Fondsgrösse in Mio. (CHF/EUR/USD gemischt, gerundet) und Tracking Difference laut etfschweiz.ch, jeweils wo belegt */
+const EXTRA={IE000L6ZMMC4:{aum:150},IE00B44Z5B48:{aum:15000,td:-0.47},IE00BK5BQT80:{aum:40000,td:0.06},IE00B3RBWM25:{aum:17000,td:0.06},IE000716YHJ7:{aum:3700,td:0.09},IE00B3YLTY66:{aum:6200,td:-0.14},IE00B6R52259:{aum:27800,td:-0.07},IE00BNG8L278:{aum:956},IE00BJ0KDQ92:{aum:21500},IE00B4L5Y983:{aum:139000},IE00BYX2JD69:{aum:7000},IE00BK5BR733:{aum:2000},IE00BKM4GZ66:{aum:20000},IE00BF4RFH31:{aum:8000},IE00BCBJG560:{aum:1375},LU0322253906:{aum:3000}};
+const fmtN=n=>Math.round(n).toLocaleString('de-CH');
+function ampelOf(e){
+  const A=AMP[S.life];if(!A)return null;
+  const x=EXTRA[e.isin]||{},dom=e.isin.slice(0,2),life=S.life;
+  const sc={},note={};
+  if(e.ter===null){sc.k=null;note.k='TER nicht belegt'}else{
+    let v=e.ter<=0.15?2:e.ter<=0.25?1:0;
+    note.k='TER '+String(e.ter.toFixed(2)).replace('.',',')+' %'+(x.td!==undefined?', Tracking Difference '+(x.td>0?'+':'')+String(x.td.toFixed(2)).replace('.',',')+' %':'');
+    if(life==='student'&&e.sp!==true){v=Math.min(v,1);note.k+=e.sp===null?', kostenloser Sparplan nicht belegt (höchstens gelb)':', kein kostenloser Sparplan (höchstens gelb)'}
+    else if(life==='student')note.k+=', Sparplan belegt';
+    sc.k=v}
+  sc.e=life==='experienced'?2:(e.div==='acc'?2:1);note.e=e.div==='acc'?'thesaurierend':'ausschüttend';
+  if(x.aum===undefined){sc.g=null;note.g='Fondsgrösse nicht belegt'}else{
+    const th=life==='student'?[100,50]:life==='einsteiger'?[500,100]:[500,500];
+    sc.g=x.aum>=th[0]?2:x.aum>=th[1]?1:0;note.g='ca. '+fmtN(x.aum)+' Mio.'}
+  sc.r=2;note.r='physisch';
+  sc.d=dom==='IE'?2:dom==='LU'?(life==='student'?2:1):(life==='student'?1:0);note.d=dom==='IE'?'Irland':dom==='LU'?'Luxemburg':dom;
+  let tw=0,ts=0,cap=false,unk=false;
+  Object.keys(sc).forEach(k=>{if(sc[k]===null){unk=true;return}tw+=A.w[k];ts+=A.w[k]*sc[k];if(A.w[k]>=4&&sc[k]===0)cap=true});
+  const avg=tw?ts/tw:null;
+  let o=avg===null?null:avg>=1.5?'g':avg>=0.9?'y':'r';
+  if(cap)o='r';
+  return {o,sc,note,unk,avg};
+}
+const AMPC={2:'g',1:'y',0:'r'};
+const AMPT={2:'grün',1:'gelb',0:'rot'};
+const AMPS={g:'✓',y:'!',r:'✕',n:'?'};
+const tipAttr=t=>esc(t).replace(/\n/g,'&#10;');
+function critTip(k,r){
+  const A=AMP[S.life],c=CRIT[k],scr=r.sc[k];
+  return c[1]+'\nGewichtung für '+A.name+': '+A.txt[k]+'\n'+c[2]+'\nDieser ETF: '+(scr===null?'nicht beurteilbar, ':AMPT[scr]+', ')+r.note[k]+'.';
+}
+function ampelHTML(e){
+  if(!e)return '';
+  if(!S.life)return '<span class="ampwrap"><span class="amp n" data-tip="Wähle oben unter «Lebenssituation» deine Situation, dann bewertet die Seite diesen ETF mit einer Ampel.">?</span></span>';
+  const r=ampelOf(e),A=AMP[S.life],c=r.o||'n';
+  const head='Ampel für '+A.name+': '+(r.o?({g:'grün',y:'gelb',r:'rot'})[r.o]:'nicht beurteilbar')+(r.unk?' (vorläufig, Angaben fehlen)':'')+'\n'+A.story+'\n\n'+Object.keys(CRIT).map(k=>CRIT[k][1]+': '+(r.sc[k]===null?'?':AMPT[r.sc[k]])+' ('+r.note[k]+')').join('\n')+'\n\nGesamtwert: gewichteter Durchschnitt der fünf Kriterien. Ein rotes Kriterium mit höchster Gewichtung setzt die Ampel auf rot.';
+  return `<span class="ampwrap"><span class="amp ${c}" data-tip="${tipAttr(head)}">${AMPS[c]}</span><span class="ads">${Object.keys(CRIT).map(k=>`<span class="ad ${r.sc[k]===null?'n':AMPC[r.sc[k]]}" data-tip="${tipAttr(critTip(k,r))}">${CRIT[k][0]}</span>`).join('')}</span></span>`;
+}
+
+/* ---------- ETF-Finder ---------- */
+/* Datenbasis: etfschweiz.ch (Blog «Die besten All-World ETFs 2026» und VALL-Artikel), simplemoney.ch, Anbieter-Factsheets (Vanguard, Xtrackers, SPDR, iShares), extraETF, finanzfabio.ch, liebefinanzen.ch. null = Angabe nicht belegt. */
+const CATN={'all-world':'All-World',developed:'Industrieländer',emerging:'Schwellenländer',small:'Small Caps'};
+const BROKERS=[['saxo','Saxo'],['yuh','Yuh'],['neon','neon'],['swissquote','Swissquote']];
+const B4=['saxo','swissquote','yuh','neon'];
+const FINDER=[
+ {name:'Xtrackers FTSE All-World (Acc)',tk:'XALL',isin:'IE000L6ZMMC4',index:'FTSE All-World',cat:'all-world',ter:0.07,div:'acc',chf:true,sc:false,esg:false,fc:'USD',brokers:['saxo','swissquote','neon'],sp:null},
+ {name:'Amundi Prime All Country World (Acc)',tk:'WEBN',isin:'IE0003XJA0J9',index:'Solactive GBS Global Markets Large & Mid Cap',cat:'all-world',ter:0.07,div:'acc',chf:false,sc:false,esg:false,fc:'USD',brokers:['saxo','swissquote'],sp:null},
+ {name:'Amundi Prime All Country World (Dist)',tk:'WEBG',isin:'IE0009HF1MK9',index:'Solactive GBS Global Markets Large & Mid Cap',cat:'all-world',ter:0.07,div:'dist',chf:true,sc:false,esg:false,fc:'USD',brokers:['saxo','swissquote'],sp:null},
+ {name:'Vanguard FTSE Global All-Cap (Acc)',tk:'VALL',isin:'IE000VAHT5T0',index:'FTSE Global All Cap',cat:'all-world',ter:0.07,div:'acc',chf:true,sc:true,esg:false,fc:'USD',brokers:B4,sp:null},
+ {name:'Vanguard FTSE Global All-Cap (Dist)',tk:'VALLD',isin:'IE000CVUM3N6',index:'FTSE Global All Cap',cat:'all-world',ter:null,div:'dist',chf:null,sc:true,esg:false,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'SPDR MSCI ACWI (Acc)',tk:'ACWI',isin:'IE00B44Z5B48',index:'MSCI ACWI',cat:'all-world',ter:0.12,div:'acc',chf:true,sc:false,esg:false,fc:'USD',brokers:['saxo','swissquote'],sp:null},
+ {name:'Vanguard FTSE All-World (Acc)',tk:'VWRA',isin:'IE00BK5BQT80',index:'FTSE All-World',cat:'all-world',ter:0.14,div:'acc',chf:true,sc:false,esg:false,fc:'USD',brokers:B4,sp:true},
+ {name:'Vanguard FTSE All-World (Dist)',tk:'VWRL',isin:'IE00B3RBWM25',index:'FTSE All-World',cat:'all-world',ter:0.14,div:'dist',chf:true,sc:false,esg:false,fc:'USD',brokers:['saxo'],brokersPartial:true,sp:true},
+ {name:'Invesco FTSE All-World (Acc)',tk:'FWRA',isin:'IE000716YHJ7',index:'FTSE All-World',cat:'all-world',ter:0.15,div:'acc',chf:true,sc:false,esg:false,fc:'USD',brokers:['saxo','swissquote','neon'],sp:true},
+ {name:'SPDR MSCI ACWI IMI (Acc)',tk:'IMID',isin:'IE00B3YLTY66',index:'MSCI ACWI IMI',cat:'all-world',ter:0.17,div:'acc',chf:null,sc:true,esg:false,fc:'USD',brokers:['saxo','swissquote'],sp:null},
+ {name:'iShares MSCI ACWI (Acc)',tk:'SSAC',isin:'IE00B6R52259',index:'MSCI ACWI',cat:'all-world',ter:0.20,div:'acc',chf:true,sc:false,esg:false,fc:'USD',brokers:['saxo','swissquote','neon'],sp:true},
+ {name:'Vanguard ESG Global All Cap (Acc)',tk:'V3AA',isin:'IE00BNG8L278',index:'FTSE Global All Cap Choice',cat:'all-world',ter:0.24,div:'acc',chf:true,sc:true,esg:true,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'Xtrackers MSCI World (Acc)',tk:'XDWD',isin:'IE00BJ0KDQ92',index:'MSCI World',cat:'developed',ter:0.12,div:'acc',chf:true,sc:false,esg:false,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'iShares Core MSCI World (Acc)',tk:'SWDA',isin:'IE00B4L5Y983',index:'MSCI World',cat:'developed',ter:0.20,div:'acc',chf:null,sc:false,esg:false,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'iShares MSCI World SRI (Acc)',tk:'SUSW',isin:'IE00BYX2JD69',index:'MSCI World SRI Select Reduced Fossil Fuel',cat:'developed',ter:0.20,div:'acc',chf:null,sc:false,esg:true,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'Vanguard FTSE Emerging Markets (Acc)',tk:'VFEA',isin:'IE00BK5BR733',index:'FTSE Emerging Markets',cat:'emerging',ter:0.17,div:'acc',chf:true,sc:false,esg:false,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'iShares Core MSCI EM IMI (Acc)',tk:'EIMI',isin:'IE00BKM4GZ66',index:'MSCI Emerging Markets IMI',cat:'emerging',ter:0.18,div:'acc',chf:null,sc:true,esg:false,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'iShares MSCI World Small Cap (Acc)',tk:'WSML',isin:'IE00BF4RFH31',index:'MSCI World Small Cap',cat:'small',ter:0.35,div:'acc',chf:null,sc:true,esg:false,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'SPDR MSCI World Small Cap (Acc)',tk:'ZPRS',isin:'IE00BCBJG560',index:'MSCI World Small Cap',cat:'small',ter:0.45,div:'acc',chf:null,sc:true,esg:false,fc:'USD',brokers:[],brokersPartial:true,sp:null},
+ {name:'Xtrackers MSCI Europe Small Cap (Acc)',tk:'XXSC',isin:'LU0322253906',index:'MSCI Europe Small Cap',cat:'small',ter:0.30,div:'acc',chf:null,sc:true,esg:false,fc:'EUR',brokers:[],brokersPartial:true,sp:null}
+];
+FINDER.forEach(e=>{if(!ISINDB[e.isin])ISINDB[e.isin]=e.name.replace(/ \((Acc|Dist)\)/,'')+' UCITS ETF'+(/\(Dist\)/.test(e.name)?' (Dist)':'')});
+function fiMatch(e){
+  const f=S.fi;let unk=false;
+  const chk=(v,need)=>{if(v===null||v===undefined){unk=true;return true}return v===need};
+  if(f.cat!=='all'&&e.cat!==f.cat)return 'no';
+  if(f.sc!=='any'&&!chk(e.sc,f.sc==='yes'))return 'no';
+  if(f.esg!=='any'&&!chk(e.esg,f.esg==='yes'))return 'no';
+  if(f.div!=='any'&&!chk(e.div,f.div))return 'no';
+  if(f.chf&&!chk(e.chf,true))return 'no';
+  if(f.sp&&!chk(e.sp,true))return 'no';
+  for(const b of f.brokers){if(!e.brokers.includes(b)){if(e.brokersPartial)unk=true;else return 'no'}}
+  return unk?'unk':'yes';
+}
+const yn=v=>v===null?'<span class="yn u" title="nicht belegt">?</span>':v?'<span class="yn y">Ja</span>':'<span class="yn n">Nein</span>';
+function fiTable(list){
+  if(!list.length)return '<p class="empty">Keine ETFs gefunden. Lockere die Filter oder schalte «Nur belegte Treffer» aus.</p>';
+  return `<table class="fit"><thead><tr><th>Wählen</th><th>ETF</th><th>Ampel</th><th>TER</th><th>Kategorie</th><th>Div.</th><th>CHF</th><th>Small</th><th>ESG</th><th>Fondswährung</th><th>Broker</th><th>Sparplan</th><th>Index</th></tr></thead><tbody>${list.map(r=>{const e=r.e,sel=S.fiSel.includes(e.isin),own=S.plan.some(x=>x.isin===e.isin&&!(x.src==='finder'&&!x.touched));
+   return `<tr${r.m==='unk'?' class="unkrow"':''}>
+   <td class="n"><label class="selc"><input type="checkbox" data-sel="${e.isin}"${sel?' checked':''} aria-label="${esc(e.name)} auswählen"><span>${own&&!sel?'schon erfasst':sel?'im Sparplan':''}</span></label></td>
+   <td class="nm"><b>${esc(e.name)}</b><small>${e.tk} · ${e.isin}</small><a href="https://www.justetf.com/de/etf-profile.html?isin=${e.isin}" target="_blank" rel="noopener noreferrer">justETF ↗</a></td>
+   <td>${ampelHTML(e)}</td>
+   <td class="n"><b>${e.ter===null?'–':String(e.ter.toFixed(2)).replace('.',',')+' %'}</b></td>
+   <td>${CATN[e.cat]}</td><td>${e.div==='acc'?'acc':'dist'}</td><td>${yn(e.chf)}</td><td>${yn(e.sc)}</td><td>${yn(e.esg)}</td><td>${e.fc}</td>
+   <td>${BROKERS.filter(b=>e.brokers.includes(b[0])).map(b=>b[1]).join(', ')||'–'}${e.brokersPartial?' (unvollständig)':''}</td>
+   <td>${yn(e.sp)}</td><td>${esc(e.index)}</td></tr>`}).join('')}</tbody></table>`;
+}
+function renderFinder(){
+  const f=S.fi,res=FINDER.map(e=>({e,m:fiMatch(e)}));
+  const sorter=(a,b)=>f.sort==='name'?a.e.name.localeCompare(b.e.name):(a.e.ter??9)-(b.e.ter??9)||a.e.name.localeCompare(b.e.name);
+  const list=res.filter(r=>r.m==='yes'||(r.m==='unk'&&!f.strict)).sort(sorter);
+  const unk=list.filter(r=>r.m==='unk').length;
+  $('fi-count').textContent=list.length+' von '+FINDER.length+' ETFs'+(S.fiSel.length?' · '+S.fiSel.length+' gewählt':'');
+  $('fi-table').innerHTML=fiTable(list);
+  $('fi-unk-wrap').hidden=true;
+  $('fi-note').innerHTML=(unk?`<b>${unk} Treffer haben unbelegte Angaben</b> (Zeilen mit «?»). Sie bleiben in der Liste, weil sie zum Filter passen können. Mit «Nur belegte Treffer» blendest du sie aus. `:'')+'Datenbasis: Tabellen aus den Artikeln «Die besten All-World ETFs 2026» und «VALL» von etfschweiz.ch, simplemoney.ch, Factsheets von Vanguard, Xtrackers und SPDR, extraETF, finanzfabio.ch und liebefinanzen.ch (Recherche Nov 2026). Die interaktive Liste von etfschweiz.ch war für mich nicht lesbar, deshalb ist dies ein Nachbau mit eigener Datenbasis und keine Kopie. «CHF» bedeutet: an der SIX in CHF handelbar. Fondswährung USD heisst: Der Fonds rechnet in Dollar. «Sparplan» steht nur bei belegter Sparplanfähigkeit auf «Ja», sonst «?». Das Auswählen übernimmt den ETF in «Mein ETF-Sparplan» in der Verwendung des Überschusses, sofern dort nicht schon ein eigener Eintrag mit dieser ISIN steht. Alle Angaben vor einem Kauf bei Broker und Anbieter prüfen, keine Anlageberatung.';
+}
+function fiFill(){
+  const f=S.fi;
+  [['fi-cat','cat'],['fi-sc','sc'],['fi-esg','esg'],['fi-div','div'],['fi-sort','sort']].forEach(([id,k])=>{$(id).value=f[k]});
+  $('fi-chf').checked=!!f.chf;$('fi-sp').checked=!!f.sp;$('fi-strict').checked=!!f.strict;
+  document.querySelectorAll('[data-br]').forEach(c=>c.checked=f.brokers.includes(c.dataset.br));
+}
+function finderSelect(isin,on){
+  if(on){
+    if(!S.fiSel.includes(isin))S.fiSel.push(isin);
+    if(!S.plan.some(x=>x.isin===isin))S.plan.push({id:nid(),isin,name:ISINDB[isin]||'',amount:0,autoName:true,on:true,src:'finder'});
+  }else{
+    S.fiSel=S.fiSel.filter(x=>x!==isin);
+    const i=S.plan.findIndex(x=>x.isin===isin&&x.src==='finder'&&!x.touched);if(i>=0)S.plan.splice(i,1);
+  }
+  renderPlan();renderFinder();update();
+}
+function bindFinder(){
+  const box=$('sec-fi-filter');
+  box.addEventListener('change',e=>{const t=e.target,f=S.fi;
+    if(t.id==='fi-cat')f.cat=t.value;else if(t.id==='fi-sc')f.sc=t.value;else if(t.id==='fi-esg')f.esg=t.value;else if(t.id==='fi-div')f.div=t.value;else if(t.id==='fi-sort')f.sort=t.value;
+    else if(t.id==='fi-chf')f.chf=t.checked;else if(t.id==='fi-sp')f.sp=t.checked;else if(t.id==='fi-strict')f.strict=t.checked;
+    else if(t.dataset.br){f.brokers=f.brokers.filter(x=>x!==t.dataset.br);if(t.checked)f.brokers.push(t.dataset.br)}
+    else return;
+    renderFinder();save()});
+  $('fi-reset').addEventListener('click',()=>{S.fi=FIDEF();fiFill();renderFinder();save()});
+  $('sec-fi-result').addEventListener('change',e=>{const c=e.target.closest('[data-sel]');if(!c)return;finderSelect(c.dataset.sel,c.checked)});
+}
+
+/* ---------- Init ---------- */
+function bindMisc(){
+  $('v-month').addEventListener('click',()=>{S.view='month';tv();update()});
+  $('v-year').addEventListener('click',()=>{S.view='year';tv();update()});
+  function tv(){$('v-month').setAttribute('aria-pressed',String(S.view==='month'));$('v-year').setAttribute('aria-pressed',String(S.view==='year'))}
+  window._tv=tv;
+  $('add-inc').addEventListener('click',()=>{S.income.push({id:nid(),name:'',amount:0,freq:'M'});renderRows('inc');update()});
+  $('add-exp').addEventListener('click',()=>{S.expense.push({id:nid(),name:'',cat:'sonst',amount:0,freq:'M'});renderRows('exp');update()});
+  $('reserve').addEventListener('input',e=>{S.reserve=Math.max(0,parseFloat(e.target.value)||0);update()});
+  PIDS.forEach((id,i)=>$(id).addEventListener('input',e=>{S.autoAlloc=false;S.pct[i]=Math.max(0,Math.min(100,parseFloat(e.target.value)||0));update()}));
+  $('alloc-auto').addEventListener('click',()=>{S.autoAlloc=true;update()});
+  $('pct-norm').addEventListener('click',()=>{
+    const tp=sum(S.pct);if(tp<=0)return;if(tp===100)return;
+    const raw=S.pct.map(v=>v*100/tp),fl=raw.map(Math.floor);let rest=100-sum(fl);
+    raw.map((v,i)=>({i,r:v-Math.floor(v)})).sort((a,b)=>b.r-a.r).forEach(x=>{if(rest>0){fl[x.i]++;rest--}});
+    S.pct=fl;S.autoAlloc=false;PIDS.forEach((id,i)=>$(id).value=S.pct[i]);update()});
+  const tip=$('tip');
+  document.addEventListener('pointermove',e=>{const t=e.target.closest&&e.target.closest('[data-tip]');
+    if(!t||!t.dataset.tip){tip.hidden=true;return}
+    tip.textContent=t.dataset.tip;tip.hidden=false;const w=tip.offsetWidth;let x=e.clientX+12;if(x+w>innerWidth-8)x=e.clientX-w-12;tip.style.left=Math.max(4,x)+'px';tip.style.top=(e.clientY+16)+'px'});
+  document.addEventListener('pointerleave',()=>{tip.hidden=true});
+}
+datalists();
+function datalists(){
+  const mk=(id,arr)=>{const d=document.createElement('datalist');d.id=id;d.innerHTML=arr.map(x=>`<option value="${esc(x)}">`).join('');document.body.appendChild(d)};
+  mk('dl-inc',INC_CHIPS.map(c=>c[0]));mk('dl-exp',EXP_CHIPS.map(c=>c[0]));
+  const d=document.createElement('datalist');d.id='dl-isin';const seen=new Set();d.innerHTML=[...FINDER.map(e=>[e.isin,e.name+' ('+e.tk+')']),...Object.entries(FUNDS).map(([k,v])=>[k,v.name])].filter(x=>!seen.has(x[0])&&seen.add(x[0])).map(x=>`<option value="${x[0]}" label="${esc(x[1])}">`).join('');document.body.appendChild(d);
+}
+load();
+chips();bindList('inc-list','inc');bindList('exp-list','exp');bindProj();bindSettings();initArrange();bindData();bindMisc();
+bindPlan();bindFinder();bindSp();bindMC();bindLife();bindReset();renderRows();renderPlan();spFill(true);renderSp();fiFill();renderFinder();window._tv();update();bindTabs();applyLayout();
+})();
+</script>
+</body>
+</html>
